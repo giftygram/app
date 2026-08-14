@@ -79,11 +79,11 @@ export function mapShopifyOrder(order: ShopifyOrderPayload) {
   const deliveryArea = recipient?.city?.trim() || null;
 
   const lineItems = order.line_items ?? [];
-  const bouquetName = lineItems[0]?.name?.trim() || null;
-  const extraItems = lineItems
-    .slice(1)
-    .map((li) => li.name)
-    .filter(Boolean);
+  const bouquetName =
+    lineItems
+      .map((li) => li.name?.trim())
+      .filter(Boolean)
+      .join(", ") || null;
 
   const deliveryMethodRaw = attr("Delivery Method");
   const deliveryMethod = deliveryMethodRaw
@@ -92,10 +92,7 @@ export function mapShopifyOrder(order: ShopifyOrderPayload) {
       : "DELIVERY"
     : null;
 
-  const notesParts = [
-    order.note?.trim() || null,
-    extraItems.length > 0 ? `Also includes: ${extraItems.join(", ")}` : null,
-  ].filter(Boolean);
+  const notesParts = [order.note?.trim() || null].filter(Boolean);
 
   return {
     orderNumber: order.name,

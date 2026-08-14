@@ -1,4 +1,4 @@
-import { whatsappLink } from "@/lib/whatsapp";
+import { normalizePhone, whatsappLink } from "@/lib/whatsapp";
 import { cn } from "@/lib/cn";
 
 export function ContactActions({
@@ -11,7 +11,7 @@ export function ContactActions({
   mapsLink?: string | null;
 }) {
   const items = [
-    { href: `tel:${phone}`, label: "Call", external: false },
+    { href: `tel:+${normalizePhone(phone)}`, label: "Call", external: false },
     { href: whatsappLink(phone, whatsappMessage), label: "WhatsApp", external: true },
     ...(mapsLink ? [{ href: mapsLink, label: "Maps", external: true }] : []),
   ];
