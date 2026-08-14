@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* GiftyGram brand palette, pulled from giftygram.ae. The coral-pink
+   (CTA/logo/footer color) is used as a deliberate, localized accent —
+   buttons, links, focus states, small highlight circles — not as a page
+   tint. Backgrounds, borders, and secondary text stay neutral gray so the
+   accent still reads clearly instead of competing with itself everywhere. */
+:root {
+  --background: #fafafa;
+  --surface: #ffffff;
+  --foreground: #252525;
+  --muted: #6b6b6e;
+  --line: #e6e6e6;
+  --brand: #f27a85;
+  --brand-ink: #ffffff;
+  --brand-soft: #fceef0;
+  --rose: #d82c0d;
+  --rose-soft: #fbeae7;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-rose: var(--rose);
+  --color-rose-soft: var(--rose-soft);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Big, thumb-friendly tap targets everywhere by default — this app lives on phones. */
+button,
+a,
+input,
+select,
+textarea {
+  font-size: 16px;
+}
