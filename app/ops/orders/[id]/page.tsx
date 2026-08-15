@@ -179,14 +179,29 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         </div>
         <div>
           <p className="text-xs text-muted mb-1.5">Driver</p>
+
+          {/* Persists regardless of status — once a courier is assigned,
+              Operations can always see who and (for outside couriers) reach
+              their no-login link again, even after delivery. */}
+          {(order.driver || order.externalDriverName) && (
+            <div className="mb-3 rounded-xl border border-line bg-background p-3 flex flex-col gap-1.5">
+              <p className="text-sm font-medium text-foreground">
+                {driverLabel}
+                {isExternalDriver && <span className="text-muted font-normal"> · Outside courier</span>}
+              </p>
+              {isExternalDriver && order.externalDriverPhone && (
+                <p className="text-xs text-muted">{order.externalDriverPhone}</p>
+              )}
+              {isExternalDriver && (
+                <div className="mt-0.5">
+                  <CopyLink path={`/deliver/${order.id}`} />
+                </div>
+              )}
+            </div>
+          )}
+
           {canAssignDriver ? (
             <div className="flex flex-col gap-3">
-              {driverLabel && (
-                <p className="text-xs text-muted">
-                  Currently: <span className="text-foreground font-medium">{driverLabel}</span>
-                  {isExternalDriver && " (outside courier)"}
-                </p>
-              )}
               <AssignSelect
                 orderId={order.id}
                 value={order.driverId}
@@ -228,30 +243,15 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                 ` — auto-approves at ${order.approvalDeadline.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
               .
             </p>
-          ) : (
+          ) : !order.driver && !order.externalDriverName ? (
             <p className="text-sm text-muted italic">Available once the bouquet is ready.</p>
-          )}
+          ) : null}
         </div>
       </section>
 
       {showDeliverySection && (
         <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-4">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Delivery</h3>
-            <p className="text-xs text-muted mt-0.5">
-              {driverLabel}
-              {isExternalDriver && " — outside courier"}
-            </p>
-          </div>
-
-          {isExternalDriver && (
-            <div>
-              <p className="text-xs text-muted mb-1.5">
-                Send this link to {driverLabel} — no login needed, works on any phone.
-              </p>
-              <CopyLink path={`/deliver/${order.id}`} />
-            </div>
-          )}
+          <h3 className="text-sm font-semibold text-foreground">Delivery</h3>
 
           <div>
             <p className="text-xs text-muted mb-1.5">Or update it yourself</p>
