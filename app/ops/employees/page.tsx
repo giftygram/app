@@ -1,7 +1,12 @@
 import { db } from "@/lib/db";
-import { createEmployeeAction, setEmployeeActiveAction } from "@/app/actions/employees";
+import {
+  createEmployeeAction,
+  setEmployeeActiveAction,
+  updateEmployeePhoneAction,
+} from "@/app/actions/employees";
 import { ToggleActive } from "@/components/toggle-active";
 import { SubmitButton } from "@/components/submit-button";
+import { normalizePhone } from "@/lib/whatsapp";
 
 const ROLE_LABEL = { OPERATIONS: "Operations", FLORIST: "Florist", DRIVER: "Driver" } as const;
 
@@ -42,6 +47,12 @@ export default async function EmployeesPage() {
               placeholder="4-digit PIN"
               className="rounded-xl border border-line bg-background px-3.5 py-2.5 text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
             />
+            <input
+              name="phone"
+              type="tel"
+              placeholder="Phone (drivers: shown to customers)"
+              className="col-span-2 rounded-xl border border-line bg-background px-3.5 py-2.5 text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
+            />
           </div>
           <SubmitButton
             pendingText="Adding…"
@@ -54,18 +65,45 @@ export default async function EmployeesPage() {
 
       <section className="flex flex-col gap-2.5">
         {employees.map((e) => (
-          <div
-            key={e.id}
-            className="flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3"
-          >
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {e.name}
-                {!e.active && <span className="text-muted font-normal"> (inactive)</span>}
-              </p>
-              <p className="text-xs text-muted">{ROLE_LABEL[e.role as keyof typeof ROLE_LABEL]}</p>
+          <div key={e.id} className="rounded-xl border border-line bg-surface px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {e.name}
+                  {!e.active && <span className="text-muted font-normal"> (inactive)</span>}
+                </p>
+                <p className="text-xs text-muted">{ROLE_LABEL[e.role as keyof typeof ROLE_LABEL]}</p>
+              </div>
+              <ToggleActive employeeId={e.id} active={e.active} action={setEmployeeActiveAction} />
             </div>
-            <ToggleActive employeeId={e.id} active={e.active} action={setEmployeeActiveAction} />
+            {e.phone && (
+              <a
+                href={`tel:+${normalizePhone(e.phone)}`}
+                className="mt-1.5 inline-block text-xs font-medium text-brand hover:underline"
+              >
+                📞 {e.phone}
+              </a>
+            )}
+            {!e.phone && e.role === "DRIVER" && (
+              <form
+                action={updateEmployeePhoneAction.bind(null, e.id)}
+                className="mt-2 flex gap-2"
+              >
+                <input
+                  type="tel"
+                  name="phone"
+                  required
+                  placeholder="Add their phone (shown to customers when out for delivery)"
+                  className="flex-1 min-w-0 rounded-lg border border-line bg-background px-2.5 py-1.5 text-xs placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
+                />
+                <SubmitButton
+                  pendingText="Saving…"
+                  className="shrink-0 rounded-lg border border-line px-3 text-xs font-semibold text-foreground hover:border-brand transition-colors"
+                >
+                  Save
+                </SubmitButton>
+              </form>
+            )}
           </div>
         ))}
       </section>

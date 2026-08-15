@@ -10,6 +10,7 @@ export async function createEmployeeAction(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
+  const phone = String(formData.get("phone") ?? "").trim() || null;
   const pin = String(formData.get("pin") ?? "");
 
   if (!name) throw new Error("Name is required.");
@@ -19,7 +20,7 @@ export async function createEmployeeAction(formData: FormData) {
   if (!/^\d{4}$/.test(pin)) throw new Error("PIN must be exactly 4 digits.");
 
   await db.employee.create({
-    data: { name, role, pinHash: hashPin(pin) },
+    data: { name, role, phone, pinHash: hashPin(pin) },
   });
 
   revalidatePath("/ops/employees");
@@ -29,4 +30,17 @@ export async function setEmployeeActiveAction(employeeId: string, active: boolea
   await requireRole("OPERATIONS");
   await db.employee.update({ where: { id: employeeId }, data: { active } });
   revalidatePath("/ops/employees");
+}
+
+/** Fills in a team driver's phone after the fact — added before this was captured, or typo'd. */
+export async function updateEmployeePhoneAction(employeeId: string, formData: FormData) {
+  await requireRole("OPERATIONS");
+
+  const phone = String(formData.get("phone") ?? "").trim();
+  if (!phone) throw new Error("Enter a phone number.");
+
+  await db.employee.update({ where: { id: employeeId }, data: { phone } });
+
+  revalidatePath("/ops/employees");
+  revalidatePath("/ops");
 }

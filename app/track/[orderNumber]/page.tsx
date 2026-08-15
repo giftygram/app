@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { CUSTOMER_STEP_MESSAGE, CUSTOMER_TIMELINE, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
 import { formatEventTime } from "@/lib/date";
+import { normalizePhone } from "@/lib/whatsapp";
 import { cn } from "@/lib/cn";
 import { ApprovalActions } from "@/components/approval-actions";
 import { ApprovalCountdown } from "@/components/approval-countdown";
@@ -18,6 +19,7 @@ export default async function TrackPage(props: PageProps<"/track/[orderNumber]">
   const order = await db.order.findUnique({
     where: { orderNumber },
     include: {
+      driver: true,
       photos: { orderBy: { createdAt: "desc" } },
       statusEvents: { orderBy: { createdAt: "asc" } },
     },
@@ -25,6 +27,8 @@ export default async function TrackPage(props: PageProps<"/track/[orderNumber]">
   if (!order) notFound();
 
   const status = order.status as OrderStatus;
+  const driverName = order.driver?.name ?? order.externalDriverName;
+  const driverPhone = order.driver?.phone ?? order.externalDriverPhone;
   // Customers only ever see the florist's bouquet photo — the delivery
   // photo is proof-of-delivery for the shop's own records, not for the
   // recipient (it's often taken at the doorstep, not a flattering shot).
@@ -76,6 +80,21 @@ export default async function TrackPage(props: PageProps<"/track/[orderNumber]">
                 {needsApproval ? "Take a look at your bouquet 🌸" : CUSTOMER_STEP_MESSAGE[status]}
               </p>
             </div>
+
+            {status === "OUT_FOR_DELIVERY" && driverPhone && (
+              <div className="rounded-2xl border border-line bg-surface p-4 mb-6 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted">Your driver</p>
+                  <p className="text-sm font-medium text-foreground truncate">{driverName}</p>
+                </div>
+                <a
+                  href={`tel:+${normalizePhone(driverPhone)}`}
+                  className="shrink-0 rounded-xl bg-brand text-brand-ink font-semibold px-4 py-2.5 text-sm hover:opacity-90 transition"
+                >
+                  📞 Call
+                </a>
+              </div>
+            )}
 
             {needsApproval ? (
               <div className="rounded-2xl border border-line bg-surface p-5 mb-6 flex flex-col gap-4">

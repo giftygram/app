@@ -15,6 +15,7 @@ model Employee {
   id        String   @id @default(cuid())
   name      String
   role      String // "OPERATIONS" | "FLORIST" | "DRIVER"
+  phone     String? // shown to the customer on the tracking page once a driver is out for delivery
   pinHash   String
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
