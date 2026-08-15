@@ -80,6 +80,19 @@ model Order {
   @@index([driverId])
 }
 
+// Backs login rate-limiting — see loginAction. Rows are cheap and small;
+// not worth a cleanup job at this volume.
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  ip         String
+  employeeId String
+  success    Boolean
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([ip, employeeId, createdAt])
+  @@index([ip, createdAt])
+}
+
 model StatusEvent {
   id         String   @id @default(cuid())
   orderId    String
