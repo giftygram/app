@@ -201,8 +201,9 @@ export async function assignExternalDriverAction(orderId: string, formData: Form
   assertCanDispatch(order);
 
   const name = String(formData.get("externalDriverName") ?? "").trim();
-  const phone = String(formData.get("externalDriverPhone") ?? "").trim() || null;
+  const phone = String(formData.get("externalDriverPhone") ?? "").trim();
   if (!name) throw new Error("Enter the courier's name.");
+  if (!phone) throw new Error("Enter the courier's phone number — you'll need it to reach them.");
 
   await db.order.update({
     where: { id: orderId },
@@ -212,6 +213,24 @@ export async function assignExternalDriverAction(orderId: string, formData: Form
   if (order.status !== "ASSIGNED_DRIVER") {
     await logStatus(orderId, order.status, "ASSIGNED_DRIVER", session.employeeId);
   }
+
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+}
+
+/** Fills in an outside courier's phone after the fact — assigned before this was required, or typo'd. */
+export async function updateExternalDriverPhoneAction(orderId: string, formData: FormData) {
+  await requireRole("OPERATIONS");
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (!order.externalDriverName) {
+    throw new Error("This order doesn't have an outside courier assigned.");
+  }
+
+  const phone = String(formData.get("externalDriverPhone") ?? "").trim();
+  if (!phone) throw new Error("Enter a phone number.");
+
+  await db.order.update({ where: { id: orderId }, data: { externalDriverPhone: phone } });
 
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);

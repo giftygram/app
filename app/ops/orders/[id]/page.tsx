@@ -19,13 +19,14 @@ import {
   opsMarkFailedAction,
   opsMarkOutForDeliveryAction,
   opsSetStatusAction,
+  updateExternalDriverPhoneAction,
   updateMapsLinkAction,
 } from "@/app/actions/orders";
 import { ContactActions } from "@/components/contact-actions";
 import { CUSTOMER_STATUS_LABEL, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
 import { formatDubaiDateTime, formatDubaiTime } from "@/lib/date";
-import { OPS_LOCATION_REQUEST_MESSAGE } from "@/lib/whatsapp";
+import { normalizePhone, OPS_LOCATION_REQUEST_MESSAGE } from "@/lib/whatsapp";
 import { cn } from "@/lib/cn";
 
 export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]">) {
@@ -191,7 +192,32 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                 {isExternalDriver && <span className="text-muted font-normal"> · Outside courier</span>}
               </p>
               {isExternalDriver && order.externalDriverPhone && (
-                <p className="text-xs text-muted">{order.externalDriverPhone}</p>
+                <a
+                  href={`tel:+${normalizePhone(order.externalDriverPhone)}`}
+                  className="text-xs font-medium text-brand hover:underline"
+                >
+                  📞 {order.externalDriverPhone}
+                </a>
+              )}
+              {isExternalDriver && !order.externalDriverPhone && (
+                <form
+                  action={updateExternalDriverPhoneAction.bind(null, order.id)}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="tel"
+                    name="externalDriverPhone"
+                    required
+                    placeholder="Add their phone number"
+                    className="flex-1 min-w-0 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
+                  />
+                  <SubmitButton
+                    pendingText="Saving…"
+                    className="shrink-0 rounded-lg border border-line px-3 text-xs font-semibold text-foreground hover:border-brand transition-colors"
+                  >
+                    Save
+                  </SubmitButton>
+                </form>
               )}
               {isExternalDriver && (
                 <div className="mt-0.5">
@@ -226,7 +252,8 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                 <input
                   type="tel"
                   name="externalDriverPhone"
-                  placeholder="Their phone (optional)"
+                  placeholder="Their phone number"
+                  required
                   className="rounded-xl border border-line bg-background px-3.5 py-2.5 text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
                 />
                 <SubmitButton
