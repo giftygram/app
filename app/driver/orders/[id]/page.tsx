@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { markDeliveredAction, markOutForDeliveryAction } from "@/app/actions/orders";
-import { PhotoInput } from "@/components/photo-input";
+import { markDeliveredAction, markFailedAction, markOutForDeliveryAction } from "@/app/actions/orders";
+import { PhotoActionForm } from "@/components/photo-action-form";
+import { SubmitButton } from "@/components/submit-button";
+import { MarkFailedForm } from "@/components/mark-failed-form";
 import { StatusChip } from "@/components/status-chip";
 import { ContactActions } from "@/components/contact-actions";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
@@ -56,29 +58,34 @@ export default async function DriverOrderPage(props: PageProps<"/driver/orders/[
 
       {order.status === "ASSIGNED_DRIVER" && (
         <form action={markOutForDeliveryAction.bind(null, order.id)}>
-          <button
-            type="submit"
+          <SubmitButton
+            pendingText="Updating…"
             className="w-full rounded-xl bg-brand text-brand-ink font-semibold py-3.5 hover:opacity-90 transition"
           >
             Picked up — heading out
-          </button>
+          </SubmitButton>
         </form>
       )}
 
       {order.status === "OUT_FOR_DELIVERY" && (
-        <form action={markDeliveredAction.bind(null, order.id)} className="flex flex-col gap-4">
-          <PhotoInput name="photo" label="Photo proof of delivery" />
-          <button
-            type="submit"
-            className="rounded-xl bg-brand text-brand-ink font-semibold py-3.5 hover:opacity-90 transition"
-          >
-            Mark delivered
-          </button>
-        </form>
+        <div className="flex flex-col gap-4">
+          <PhotoActionForm
+            action={markDeliveredAction.bind(null, order.id)}
+            photoLabel="Photo proof of delivery"
+            submitLabel="Mark delivered"
+          />
+          <MarkFailedForm action={markFailedAction.bind(null, order.id)} />
+        </div>
       )}
 
       {order.status === "DELIVERED" && (
         <p className="text-sm text-muted text-center py-4">This order has been delivered.</p>
+      )}
+
+      {order.status === "FAILED_DELIVERY" && (
+        <p className="text-sm text-muted text-center py-4">
+          This delivery was marked as failed. Operations has been notified.
+        </p>
       )}
     </div>
   );

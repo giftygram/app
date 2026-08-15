@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { createEmployeeAction, setEmployeeActiveAction } from "@/app/actions/employees";
 import { ToggleActive } from "@/components/toggle-active";
+import { SubmitButton } from "@/components/submit-button";
 
 const ROLE_LABEL = { OPERATIONS: "Operations", FLORIST: "Florist", DRIVER: "Driver" } as const;
 
@@ -42,12 +43,12 @@ export default async function EmployeesPage() {
               className="rounded-xl border border-line bg-background px-3.5 py-2.5 text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
             />
           </div>
-          <button
-            type="submit"
+          <SubmitButton
+            pendingText="Adding…"
             className="rounded-xl bg-brand text-brand-ink font-semibold py-2.5 text-sm hover:opacity-90 transition"
           >
             Add
-          </button>
+          </SubmitButton>
         </form>
       </section>
 

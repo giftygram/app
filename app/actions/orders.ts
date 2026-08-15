@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
 import { savePhoto } from "@/lib/photos";
-import type { OrderStatus } from "@/lib/status";
+import { ORDER_STATUSES, type OrderStatus } from "@/lib/status";
 import { approvalDeadlineFromNow, effectiveApproval } from "@/lib/approval";
 
 async function logStatus(
@@ -333,6 +333,90 @@ async function doMarkDelivered(order: { id: string; status: string }, photo: Fil
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${order.id}`);
   revalidatePath(`/deliver/${order.id}`);
+}
+
+function reasonFromFormData(formData: FormData): string {
+  const preset = String(formData.get("reason") ?? "").trim();
+  const note = String(formData.get("reasonNote") ?? "").trim();
+  return preset === "Other" && note ? note : preset || "No reason given";
+}
+
+async function doMarkFailed(
+  order: { id: string; status: string },
+  reason: string,
+  employeeId: string | null
+) {
+  if (order.status !== "OUT_FOR_DELIVERY") {
+    throw new Error("This order isn't out for delivery.");
+  }
+  await db.order.update({
+    where: { id: order.id },
+    data: { status: "FAILED_DELIVERY", deliveryFailureReason: reason },
+  });
+  await logStatus(order.id, order.status, "FAILED_DELIVERY", employeeId);
+
+  revalidatePath("/driver");
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${order.id}`);
+  revalidatePath(`/deliver/${order.id}`);
+}
+
+export async function markFailedAction(orderId: string, formData: FormData) {
+  const session = await requireRole("DRIVER");
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (order.driverId !== session.employeeId) {
+    throw new Error("This order isn't assigned to you.");
+  }
+  await doMarkFailed(order, reasonFromFormData(formData), session.employeeId);
+  redirect("/driver");
+}
+
+/** Public — see publicMarkOutForDeliveryAction/publicMarkDeliveredAction. */
+export async function publicMarkFailedAction(orderId: string, formData: FormData) {
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (order.status !== "OUT_FOR_DELIVERY") return;
+  await doMarkFailed(order, reasonFromFormData(formData), null);
+}
+
+/** Operations marking a failed delivery on a driver's behalf. */
+export async function opsMarkFailedAction(orderId: string, formData: FormData) {
+  const session = await requireRole("OPERATIONS");
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  await doMarkFailed(order, reasonFromFormData(formData), session.employeeId);
+}
+
+/**
+ * Operations-only escape hatch: move an order straight to any status,
+ * bypassing the normal state-machine guards above. For recovering from
+ * mistakes (wrong cancel, wrong "delivered") and re-dispatching failed
+ * deliveries without forcing a specific path back through the flow.
+ */
+export async function opsSetStatusAction(orderId: string, formData: FormData) {
+  const session = await requireRole("OPERATIONS");
+
+  const newStatus = String(formData.get("status") ?? "");
+  if (!ORDER_STATUSES.includes(newStatus as OrderStatus)) {
+    throw new Error("Invalid status.");
+  }
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (order.status === newStatus) return;
+
+  await db.order.update({
+    where: { id: orderId },
+    data: {
+      status: newStatus,
+      ...(newStatus !== "FAILED_DELIVERY" ? { deliveryFailureReason: null } : {}),
+    },
+  });
+  await logStatus(orderId, order.status, newStatus as OrderStatus, session.employeeId);
+
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+  revalidatePath("/florist");
+  revalidatePath("/driver");
+  revalidatePath(`/deliver/${orderId}`);
+  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
 }
 
 export async function markOutForDeliveryAction(orderId: string) {

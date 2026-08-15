@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { db } from "@/lib/db";
 import { CUSTOMER_STEP_MESSAGE, CUSTOMER_TIMELINE, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
@@ -45,9 +46,13 @@ export default async function TrackPage(props: PageProps<"/track/[orderNumber]">
     <main className="flex-1 flex justify-center bg-background px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-brand-soft flex items-center justify-center text-2xl">
-            💐
-          </div>
+          <Image
+            src="/flower-icon.png"
+            alt=""
+            width={512}
+            height={512}
+            className="mx-auto mb-3 h-12 w-12 rounded-full bg-brand-soft object-cover"
+          />
           <h1 className="text-lg font-semibold text-foreground">GiftyGram Flowers</h1>
           <p className="font-mono text-sm text-muted mt-1">{order.orderNumber}</p>
         </div>
@@ -56,6 +61,13 @@ export default async function TrackPage(props: PageProps<"/track/[orderNumber]">
           <div className="rounded-2xl border border-line bg-surface p-6 text-center">
             <p className="text-foreground font-medium">This order was cancelled.</p>
             <p className="text-sm text-muted mt-1">Contact GiftyGram Flowers for details.</p>
+          </div>
+        ) : status === "FAILED_DELIVERY" ? (
+          <div className="rounded-2xl border border-line bg-surface p-6 text-center">
+            <p className="text-foreground font-medium">We couldn&apos;t complete delivery.</p>
+            <p className="text-sm text-muted mt-1">
+              We&apos;ll be in touch shortly to sort this out — or contact GiftyGram Flowers directly.
+            </p>
           </div>
         ) : (
           <>

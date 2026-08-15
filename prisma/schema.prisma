@@ -30,7 +30,7 @@ model Order {
   source          String // "SHOPIFY" | "WHATSAPP"
   shopifyOrderId  String?   @unique
   status          String    @default("NEW")
-  // "NEW" | "ASSIGNED_FLORIST" | "READY" | "ASSIGNED_DRIVER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED"
+  // "NEW" | "ASSIGNED_FLORIST" | "READY" | "ASSIGNED_DRIVER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "FAILED_DELIVERY" | "CANCELLED"
 
   senderName       String?
   senderPhone      String?
@@ -46,6 +46,10 @@ model Order {
 
   bouquetName        String?
   referenceImageUrl  String?
+
+  // Set when a driver or outside courier marks a delivery attempt failed —
+  // cleared automatically once Operations moves the order to a new status.
+  deliveryFailureReason String?
 
   approvalStatus     String    @default("PENDING") // "PENDING" | "APPROVED" | "CHANGES_REQUESTED"
   approvalDeadline   DateTime?

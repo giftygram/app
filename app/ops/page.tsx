@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { StatusChip } from "@/components/status-chip";
 import { DateNav } from "@/components/date-nav";
 import { DayStats } from "@/components/day-stats";
-import { isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
+import { ACTIVE_STATUSES, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
 import { addDays, fromDateParam, startOfDay, toDateParam } from "@/lib/date";
 import { cn } from "@/lib/cn";
@@ -14,6 +14,7 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "ASSIGNED_DRIVER", label: "Waiting for pickup" },
   { key: "OUT_FOR_DELIVERY", label: "Out for delivery" },
   { key: "DELIVERED", label: "Delivered" },
+  { key: "FAILED_DELIVERY", label: "Failed" },
   { key: "active", label: "Active" },
 ];
 
@@ -63,7 +64,7 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
 
   let statusWhere: Record<string, unknown> = {};
   if (filter === "active") {
-    statusWhere = { status: { in: ["NEW", "ASSIGNED_FLORIST", "READY", "ASSIGNED_DRIVER", "OUT_FOR_DELIVERY"] } };
+    statusWhere = { status: { in: ACTIVE_STATUSES } };
   } else if (filter !== "all") {
     statusWhere = { status: filter };
   }

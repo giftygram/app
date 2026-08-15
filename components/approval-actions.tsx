@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { approveBouquetAction, requestBouquetChangesAction } from "@/app/actions/orders";
+import { SubmitButton } from "@/components/submit-button";
 
 export function ApprovalActions({ orderId }: { orderId: string }) {
   const [mode, setMode] = useState<"choose" | "changes">("choose");
@@ -26,12 +27,12 @@ export function ApprovalActions({ orderId }: { orderId: string }) {
           >
             Back
           </button>
-          <button
-            type="submit"
+          <SubmitButton
+            pendingText="Sending…"
             className="flex-1 rounded-xl bg-brand text-brand-ink py-2.5 text-sm font-semibold hover:opacity-90 transition"
           >
             Send feedback
-          </button>
+          </SubmitButton>
         </div>
       </form>
     );

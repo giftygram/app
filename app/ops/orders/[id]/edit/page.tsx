@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { updateOrderAction } from "@/app/actions/orders";
 import { Field } from "@/components/order-form-field";
+import { SubmitButton } from "@/components/submit-button";
 import { toDatetimeLocalValue } from "@/lib/date";
 
 export default async function EditOrderPage(props: PageProps<"/ops/orders/[id]/edit">) {
@@ -97,12 +98,12 @@ export default async function EditOrderPage(props: PageProps<"/ops/orders/[id]/e
           defaultValue={order.notes ?? ""}
         />
 
-        <button
-          type="submit"
+        <SubmitButton
+          pendingText="Saving…"
           className="mt-2 rounded-xl bg-brand text-brand-ink font-semibold py-3 hover:opacity-90 transition"
         >
           Save changes
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

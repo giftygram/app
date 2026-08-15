@@ -1,7 +1,14 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { db } from "@/lib/db";
-import { publicMarkDeliveredAction, publicMarkOutForDeliveryAction } from "@/app/actions/orders";
-import { PhotoInput } from "@/components/photo-input";
+import {
+  publicMarkDeliveredAction,
+  publicMarkFailedAction,
+  publicMarkOutForDeliveryAction,
+} from "@/app/actions/orders";
+import { PhotoActionForm } from "@/components/photo-action-form";
+import { SubmitButton } from "@/components/submit-button";
+import { MarkFailedForm } from "@/components/mark-failed-form";
 import { ContactActions } from "@/components/contact-actions";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
 import { DRIVER_PICKUP_MESSAGE } from "@/lib/whatsapp";
@@ -21,9 +28,13 @@ export default async function PublicDeliveryPage(props: PageProps<"/deliver/[ord
     <main className="flex-1 flex justify-center bg-background px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-brand-soft flex items-center justify-center text-2xl">
-            🚗
-          </div>
+          <Image
+            src="/flower-icon.png"
+            alt=""
+            width={512}
+            height={512}
+            className="mx-auto mb-3 h-12 w-12 rounded-full bg-brand-soft object-cover"
+          />
           <h1 className="text-lg font-semibold text-foreground">GiftyGram Flowers</h1>
           <p className="font-mono text-sm text-muted mt-1">{order.orderNumber}</p>
         </div>
@@ -52,34 +63,38 @@ export default async function PublicDeliveryPage(props: PageProps<"/deliver/[ord
 
         {order.status === "ASSIGNED_DRIVER" && (
           <form action={publicMarkOutForDeliveryAction.bind(null, order.id)}>
-            <button
-              type="submit"
+            <SubmitButton
+              pendingText="Updating…"
               className="w-full rounded-xl bg-brand text-brand-ink font-semibold py-3.5 hover:opacity-90 transition"
             >
               Picked up — heading out
-            </button>
+            </SubmitButton>
           </form>
         )}
 
         {order.status === "OUT_FOR_DELIVERY" && (
-          <form action={publicMarkDeliveredAction.bind(null, order.id)} className="flex flex-col gap-4">
-            <PhotoInput name="photo" label="Photo proof of delivery" />
-            <button
-              type="submit"
-              className="rounded-xl bg-brand text-brand-ink font-semibold py-3.5 hover:opacity-90 transition"
-            >
-              Mark delivered
-            </button>
-          </form>
+          <div className="flex flex-col gap-4">
+            <PhotoActionForm
+              action={publicMarkDeliveredAction.bind(null, order.id)}
+              photoLabel="Photo proof of delivery"
+              submitLabel="Mark delivered"
+            />
+            <MarkFailedForm action={publicMarkFailedAction.bind(null, order.id)} />
+          </div>
         )}
 
         {order.status === "DELIVERED" && (
           <p className="text-sm text-muted text-center py-4">This order has been delivered. Thank you! 🌸</p>
         )}
 
+        {order.status === "FAILED_DELIVERY" && (
+          <p className="text-sm text-muted text-center py-4">This delivery was marked as failed.</p>
+        )}
+
         {order.status !== "ASSIGNED_DRIVER" &&
           order.status !== "OUT_FOR_DELIVERY" &&
-          order.status !== "DELIVERED" && (
+          order.status !== "DELIVERED" &&
+          order.status !== "FAILED_DELIVERY" && (
             <p className="text-sm text-muted text-center py-4">
               This delivery isn&apos;t ready for pickup yet — check back shortly.
             </p>

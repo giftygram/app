@@ -6,14 +6,19 @@ import { StatusChip } from "@/components/status-chip";
 import { AssignSelect } from "@/components/assign-select";
 import { ConfirmSubmit } from "@/components/confirm-submit";
 import { CopyLink } from "@/components/copy-link";
-import { PhotoInput } from "@/components/photo-input";
+import { PhotoActionForm } from "@/components/photo-action-form";
+import { SubmitButton } from "@/components/submit-button";
+import { StatusOverride } from "@/components/status-override";
+import { MarkFailedForm } from "@/components/mark-failed-form";
 import {
   assignDriverAction,
   assignExternalDriverAction,
   assignFloristAction,
   cancelOrderAction,
   opsMarkDeliveredAction,
+  opsMarkFailedAction,
   opsMarkOutForDeliveryAction,
+  opsSetStatusAction,
   updateMapsLinkAction,
 } from "@/app/actions/orders";
 import { ContactActions } from "@/components/contact-actions";
@@ -54,7 +59,8 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
 
   const driverLabel = order.driver?.name ?? order.externalDriverName ?? null;
   const isExternalDriver = !order.driverId && !!order.externalDriverName;
-  const showDeliverySection = status === "ASSIGNED_DRIVER" || status === "OUT_FOR_DELIVERY";
+  const showDeliverySection =
+    status === "ASSIGNED_DRIVER" || status === "OUT_FOR_DELIVERY" || status === "FAILED_DELIVERY";
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -99,7 +105,9 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         {canCancel && (
           <form action={cancelOrderAction.bind(null, order.id)}>
             <ConfirmSubmit
-              confirmText={`Cancel order ${order.orderNumber}? This can't be undone.`}
+              confirmText="Are you sure you want to CANCEL this order?"
+              confirmDetail={`Order ${order.orderNumber} — this can't be undone.`}
+              confirmLabel="Yes, cancel order"
               className="text-xs font-medium text-muted hover:text-red-600"
             >
               Cancel this order
@@ -107,6 +115,18 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
           </form>
         )}
       </div>
+
+      <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-2">
+        <h3 className="text-sm font-semibold text-foreground">Change status</h3>
+        <p className="text-xs text-muted">
+          Manual override — moves the order directly to any status, skipping the normal checks.
+        </p>
+        {/* key resets the uncontrolled <select> whenever the real status
+            changes underneath it — otherwise a completed override (or
+            anyone else's concurrent change) leaves the dropdown showing a
+            stale value even though the chip above is correct. */}
+        <StatusOverride key={status} orderId={order.id} current={status} action={opsSetStatusAction} />
+      </section>
 
       <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-3">
         <h3 className="text-sm font-semibold text-foreground">Recipient</h3>
@@ -139,12 +159,12 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
               placeholder="Paste the recipient's pin location link"
               className="flex-1 min-w-0 rounded-xl border border-line bg-background px-3.5 py-2.5 text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
             />
-            <button
-              type="submit"
+            <SubmitButton
+              pendingText="Saving…"
               className="shrink-0 rounded-xl border border-line px-4 text-sm font-semibold text-foreground hover:border-brand transition-colors"
             >
               Save
-            </button>
+            </SubmitButton>
           </form>
         </div>
         <div>
@@ -193,12 +213,12 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                   placeholder="Their phone (optional)"
                   className="rounded-xl border border-line bg-background px-3.5 py-2.5 text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
                 />
-                <button
-                  type="submit"
+                <SubmitButton
+                  pendingText="Assigning…"
                   className="rounded-xl border border-line py-2.5 text-sm font-semibold text-foreground hover:border-brand transition-colors"
                 >
                   Assign outside courier
-                </button>
+                </SubmitButton>
               </form>
             </div>
           ) : approval === "PENDING" ? (
@@ -237,29 +257,33 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
             <p className="text-xs text-muted mb-1.5">Or update it yourself</p>
             {status === "ASSIGNED_DRIVER" && (
               <form action={opsMarkOutForDeliveryAction.bind(null, order.id)}>
-                <button
-                  type="submit"
+                <SubmitButton
+                  pendingText="Updating…"
                   className="w-full rounded-xl border border-line py-2.5 text-sm font-semibold text-foreground hover:border-brand transition-colors"
                 >
                   Mark picked up
-                </button>
+                </SubmitButton>
               </form>
             )}
             {status === "OUT_FOR_DELIVERY" && (
-              <form action={opsMarkDeliveredAction.bind(null, order.id)} className="flex flex-col gap-3">
-                <PhotoInput
-                  name="photo"
-                  label="Delivery photo"
+              <div className="flex flex-col gap-3">
+                <PhotoActionForm
+                  action={opsMarkDeliveredAction.bind(null, order.id)}
+                  photoLabel="Delivery photo"
                   useCamera={false}
-                  placeholder="Add proof of delivery"
+                  photoPlaceholder="Add proof of delivery"
+                  submitLabel="Mark delivered"
                 />
-                <button
-                  type="submit"
-                  className="w-full rounded-xl border border-line py-2.5 text-sm font-semibold text-foreground hover:border-brand transition-colors"
-                >
-                  Mark delivered
-                </button>
-              </form>
+                <MarkFailedForm action={opsMarkFailedAction.bind(null, order.id)} />
+              </div>
+            )}
+            {status === "FAILED_DELIVERY" && order.deliveryFailureReason && (
+              <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 mb-1">
+                  Delivery failed
+                </p>
+                <p className="text-sm text-orange-900">{order.deliveryFailureReason}</p>
+              </div>
             )}
           </div>
         </section>

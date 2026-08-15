@@ -5,17 +5,21 @@ export const ORDER_STATUSES = [
   "ASSIGNED_DRIVER",
   "OUT_FOR_DELIVERY",
   "DELIVERED",
+  "FAILED_DELIVERY",
   "CANCELLED",
 ] as const;
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+// Failed deliveries stay "active" — they need Operations to re-dispatch or
+// otherwise resolve them, same as anything still moving through the flow.
 export const ACTIVE_STATUSES: OrderStatus[] = [
   "NEW",
   "ASSIGNED_FLORIST",
   "READY",
   "ASSIGNED_DRIVER",
   "OUT_FOR_DELIVERY",
+  "FAILED_DELIVERY",
 ];
 
 // What operations sees on the board, and the color used for its chip.
@@ -53,6 +57,11 @@ export const STATUS_META: Record<
     chip: "bg-green-100 text-green-800 border-green-300",
     dot: "bg-green-600",
   },
+  FAILED_DELIVERY: {
+    label: "Delivery failed",
+    chip: "bg-orange-50 text-orange-700 border-orange-200",
+    dot: "bg-orange-500",
+  },
   CANCELLED: {
     label: "Cancelled",
     chip: "bg-red-50 text-red-700 border-red-200",
@@ -69,6 +78,7 @@ export const CUSTOMER_STATUS_LABEL: Record<OrderStatus, string> = {
   ASSIGNED_DRIVER: "Waiting for pickup",
   OUT_FOR_DELIVERY: "Out for delivery",
   DELIVERED: "Delivered",
+  FAILED_DELIVERY: "Delivery attempt failed",
   CANCELLED: "Cancelled",
 };
 
@@ -90,18 +100,21 @@ export const CUSTOMER_STEP_MESSAGE: Record<OrderStatus, string> = {
   ASSIGNED_DRIVER: "Packed and waiting for pickup",
   OUT_FOR_DELIVERY: "On its way to you 🚗",
   DELIVERED: "Delivered! Enjoy your flowers 💐",
+  FAILED_DELIVERY: "We couldn't complete delivery — we'll be in touch",
   CANCELLED: "This order was cancelled",
 };
 
+const TERMINAL_STATUSES: OrderStatus[] = ["DELIVERED", "FAILED_DELIVERY", "CANCELLED"];
+
 export function isOverdue(deadlineAt: Date | null, status: OrderStatus) {
   if (!deadlineAt) return false;
-  if (status === "DELIVERED" || status === "CANCELLED") return false;
+  if (TERMINAL_STATUSES.includes(status)) return false;
   return deadlineAt.getTime() < Date.now();
 }
 
 export function isDueSoon(deadlineAt: Date | null, status: OrderStatus) {
   if (!deadlineAt) return false;
-  if (status === "DELIVERED" || status === "CANCELLED") return false;
+  if (TERMINAL_STATUSES.includes(status)) return false;
   const msLeft = deadlineAt.getTime() - Date.now();
   return msLeft > 0 && msLeft < 60 * 60 * 1000;
 }

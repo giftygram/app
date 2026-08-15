@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createOrderAction } from "@/app/actions/orders";
 import { PhotoInput } from "@/components/photo-input";
 import { Field } from "@/components/order-form-field";
+import { SubmitButton } from "@/components/submit-button";
 
 export default function NewOrderPage() {
   return (
@@ -34,12 +35,12 @@ export default function NewOrderPage() {
         <Field label="Deliver by" name="deadlineAt" type="datetime-local" />
         <Field label="Internal notes" name="notes" as="textarea" placeholder="Anything the team should know (not shown to customer)" />
 
-        <button
-          type="submit"
+        <SubmitButton
+          pendingText="Creating…"
           className="mt-2 rounded-xl bg-brand text-brand-ink font-semibold py-3 hover:opacity-90 transition"
         >
           Create order
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

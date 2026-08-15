@@ -3,6 +3,7 @@ const TRACKED_STATUSES = [
   { key: "OUT_FOR_DELIVERY", label: "out for delivery" },
   { key: "READY", label: "ready" },
   { key: "ASSIGNED_FLORIST", label: "with florist" },
+  { key: "FAILED_DELIVERY", label: "failed" },
   { key: "CANCELLED", label: "cancelled" },
 ] as const;
 

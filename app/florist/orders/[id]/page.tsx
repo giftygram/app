@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { markReadyAction } from "@/app/actions/orders";
-import { PhotoInput } from "@/components/photo-input";
+import { PhotoActionForm } from "@/components/photo-action-form";
 import { StatusChip } from "@/components/status-chip";
 import type { OrderStatus } from "@/lib/status";
 
@@ -65,15 +65,11 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
       </div>
 
       {order.status === "ASSIGNED_FLORIST" ? (
-        <form action={markReadyAction.bind(null, order.id)} className="flex flex-col gap-4">
-          <PhotoInput name="photo" label="Photo of the finished bouquet" />
-          <button
-            type="submit"
-            className="rounded-xl bg-brand text-brand-ink font-semibold py-3.5 hover:opacity-90 transition"
-          >
-            Mark ready
-          </button>
-        </form>
+        <PhotoActionForm
+          action={markReadyAction.bind(null, order.id)}
+          photoLabel="Photo of the finished bouquet"
+          submitLabel="Mark ready"
+        />
       ) : (
         <p className="text-sm text-muted text-center py-4">This order has already been marked ready.</p>
       )}

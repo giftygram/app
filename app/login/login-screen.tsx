@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { loginAction } from "@/app/actions/auth";
 import { cn } from "@/lib/cn";
 
@@ -27,10 +28,14 @@ export default function LoginScreen({ employees }: { employees: Employee[] }) {
     <main className="flex-1 flex items-center justify-center px-4 py-10 bg-background">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-brand-soft flex items-center justify-center text-2xl">
-            💐
-          </div>
-          <h1 className="text-xl font-semibold text-foreground">GiftyGram Flowers</h1>
+          <Image
+            src="/logo.png"
+            alt="GiftyGram Flowers"
+            width={1000}
+            height={500}
+            priority
+            className="mx-auto h-20 w-auto mb-2"
+          />
           <p className="text-sm text-muted mt-1">Sign in to see your orders</p>
         </div>
 
