@@ -29,6 +29,7 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
           { orderNumber: { contains: q } },
           { recipientName: { contains: q } },
           { recipientPhone: { contains: q } },
+          { senderPhone: { contains: q } },
         ],
       },
       include: { florist: true, driver: true },
