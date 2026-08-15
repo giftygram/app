@@ -62,6 +62,13 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   const dueSoon = isDueSoon(order.deadlineAt, status);
   const canCancel = status !== "DELIVERED" && status !== "CANCELLED";
   const approval = status === "READY" ? effectiveApproval(order) : null;
+  // Unlike `approval` above (only meaningful while still deciding whether to
+  // dispatch), this is for showing the outcome permanently on the order's
+  // record — approvalDeadline is set once by the florist and never cleared,
+  // so it's a reliable "this order went through customer review" signal no
+  // matter what status the order is in now.
+  const reviewApproval = order.approvalDeadline ? effectiveApproval(order) : null;
+  const wasAutoApproved = order.approvalStatus === "PENDING" && reviewApproval === "APPROVED";
   const canAssignDriver = status === "ASSIGNED_DRIVER" || (status === "READY" && approval === "APPROVED");
 
   // Newest first, so this is always the latest revision after any redo.
@@ -208,7 +215,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                 {isExternalDriver && <span className="text-muted font-normal"> · Outside courier</span>}
               </p>
               {driverPhone ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
                   <a
                     href={`tel:+${normalizePhone(driverPhone)}`}
                     className="text-xs font-medium text-brand hover:underline"
@@ -219,9 +226,9 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                     href={whatsappLink(driverPhone, driverDeliveryLinkMessage(deliverLink))}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs font-medium text-brand hover:underline"
+                    className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-foreground hover:border-brand transition-colors"
                   >
-                    💬 WhatsApp
+                    💬 Send on WhatsApp
                   </a>
                 </div>
               ) : (
@@ -344,10 +351,10 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         </section>
       )}
 
-      {(status === "READY" || order.changeRequestNote) && order.approvalDeadline && (
+      {order.approvalDeadline && (
         <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-3">
           <h3 className="text-sm font-semibold text-foreground">Customer review</h3>
-          {approval === "PENDING" && (
+          {reviewApproval === "PENDING" && (
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-sm">
                 <span className="font-medium text-amber-700">Awaiting customer approval</span>
@@ -369,8 +376,10 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
               )}
             </div>
           )}
-          {approval === "APPROVED" && (
-            <p className="text-sm font-medium text-emerald-700">Customer approved ✓</p>
+          {reviewApproval === "APPROVED" && (
+            <p className="text-sm font-medium text-emerald-700">
+              {wasAutoApproved ? "Auto-approved (no response in time) ✓" : "Customer approved ✓"}
+            </p>
           )}
           {order.changeRequestNote && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
