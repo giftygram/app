@@ -17,7 +17,7 @@ model Employee {
   role      String // "OPERATIONS" | "FLORIST" | "DRIVER"
   pinHash   String
   active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   floristOrders Order[]       @relation("FloristOrders")
   driverOrders  Order[]       @relation("DriverOrders")
@@ -42,7 +42,7 @@ model Order {
   mapsLink         String?
   cardMessage      String?
   occasion         String?
-  deadlineAt       DateTime?
+  deadlineAt       DateTime? @db.Timestamptz(3)
 
   bouquetName        String?
   referenceImageUrl  String?
@@ -52,7 +52,7 @@ model Order {
   deliveryFailureReason String?
 
   approvalStatus     String    @default("PENDING") // "PENDING" | "APPROVED" | "CHANGES_REQUESTED"
-  approvalDeadline   DateTime?
+  approvalDeadline   DateTime? @db.Timestamptz(3)
   changeRequestNote  String?
 
   floristId String?
@@ -68,8 +68,8 @@ model Order {
 
   notes String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   statusEvents StatusEvent[]
   photos       Photo[]
@@ -87,7 +87,7 @@ model StatusEvent {
   toStatus   String
   employeeId String?
   employee   Employee? @relation(fields: [employeeId], references: [id])
-  createdAt  DateTime @default(now())
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([orderId])
 }
@@ -98,7 +98,7 @@ model Photo {
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   type      String // "BOUQUET" | "DELIVERY"
   url       String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([orderId])
 }

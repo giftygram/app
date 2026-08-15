@@ -88,17 +88,27 @@ export function toDatetimeLocalValue(d: Date) {
 }
 
 /**
+ * Converts Dubai wall-clock date/time components into the correct absolute
+ * instant. Must not use `new Date(y, m, d, h, mi)` directly: that
+ * multi-arg constructor builds the date in the *server's* local timezone,
+ * which on Vercel is UTC, not Dubai — the exact bug that had every
+ * Shopify-order deadline (parsed from the checkout's delivery date/time)
+ * and every manually-typed deadline stored 4 hours later than intended.
+ */
+export function fromDubaiComponents(y: number, m: number, d: number, h = 0, mi = 0): Date {
+  return new Date(Date.UTC(y, m - 1, d, h, mi) - DUBAI_OFFSET_MS);
+}
+
+/**
  * Inverse of toDatetimeLocalValue — parses a <input type="datetime-local">
  * value (Dubai wall-clock, no timezone info in the string itself) into the
- * correct absolute instant. Must not use `new Date(value)` directly: a bare
- * "YYYY-MM-DDTHH:mm" string is parsed in the *server's* local timezone,
- * which on Vercel is UTC, not Dubai.
+ * correct absolute instant.
  */
 export function fromDatetimeLocalValue(value: string): Date | null {
   const m = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
   if (!m) return null;
   const [, y, mo, d, h, mi] = m;
-  return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi) - DUBAI_OFFSET_MS);
+  return fromDubaiComponents(+y, +mo, +d, +h, +mi);
 }
 
 /** Full date + time, Dubai-local — "Aug 15, 2026, 4:16 PM". */

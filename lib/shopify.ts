@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { fromDubaiComponents } from "@/lib/date";
 
 /**
  * Verifies the `X-Shopify-Hmac-Sha256` header against the raw request body.
@@ -60,11 +61,11 @@ function parseDeadline(dateStr: string | null, timeWindow: string | null): Date 
   const match = endTime?.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
 
   const [y, m, d] = dateStr.split("-").map(Number);
-  if (!match) return new Date(y, m - 1, d, 23, 59);
+  if (!match) return fromDubaiComponents(y, m, d, 23, 59);
 
   let hour = parseInt(match[1], 10) % 12;
   if (match[3].toUpperCase() === "PM") hour += 12;
-  return new Date(y, m - 1, d, hour, parseInt(match[2], 10));
+  return fromDubaiComponents(y, m, d, hour, parseInt(match[2], 10));
 }
 
 /** Maps a Shopify order payload to our Order.create() input. */
