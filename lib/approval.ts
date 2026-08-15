@@ -1,6 +1,6 @@
 export type ApprovalStatus = "PENDING" | "APPROVED" | "CHANGES_REQUESTED";
 
-export const APPROVAL_WINDOW_MINUTES = 30;
+export const APPROVAL_WINDOW_MINUTES = 15;
 
 type ApprovalFields = { approvalStatus: string; approvalDeadline: Date | null };
 
