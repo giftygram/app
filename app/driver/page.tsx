@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { StatusChip } from "@/components/status-chip";
 import { isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
+import { startOfDay } from "@/lib/date";
 import { cn } from "@/lib/cn";
 
 export default async function DriverQueuePage() {
@@ -16,7 +17,7 @@ export default async function DriverQueuePage() {
       orderBy: [{ deadlineAt: "asc" }, { createdAt: "asc" }],
     }),
     db.order.findMany({
-      where: { driverId: session.employeeId, status: "DELIVERED", updatedAt: { gte: startOfToday() } },
+      where: { driverId: session.employeeId, status: "DELIVERED", updatedAt: { gte: startOfDay(new Date()) } },
       orderBy: { updatedAt: "desc" },
       take: 20,
     }),
@@ -96,10 +97,4 @@ export default async function DriverQueuePage() {
       )}
     </div>
   );
-}
-
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
 }

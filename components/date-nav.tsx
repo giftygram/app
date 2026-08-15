@@ -7,6 +7,7 @@ import {
   addDays,
   addMonths,
   buildMonthGrid,
+  DUBAI_TZ,
   formatDateLabel,
   isSameDay,
   startOfMonth,
@@ -97,7 +98,7 @@ export function DateNav({
           <CalendarGlyph />
           {formatDateLabel(selectedDate, today)}
           <span className="font-normal text-muted">
-            {selectedDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+            {selectedDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric", timeZone: DUBAI_TZ })}
           </span>
         </button>
 
@@ -118,7 +119,7 @@ export function DateNav({
                 ‹
               </button>
               <p className="text-sm font-semibold text-foreground">
-                {viewMonth.toLocaleDateString([], { month: "long", year: "numeric" })}
+                {viewMonth.toLocaleDateString([], { month: "long", year: "numeric", timeZone: DUBAI_TZ })}
               </p>
               <button
                 type="button"

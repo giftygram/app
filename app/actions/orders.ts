@@ -8,6 +8,7 @@ import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
 import { savePhoto } from "@/lib/photos";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/status";
 import { approvalDeadlineFromNow, effectiveApproval } from "@/lib/approval";
+import { fromDatetimeLocalValue } from "@/lib/date";
 
 async function logStatus(
   orderId: string,
@@ -35,7 +36,7 @@ export async function createOrderAction(formData: FormData) {
   const occasion = String(formData.get("occasion") ?? "").trim() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const deadlineRaw = String(formData.get("deadlineAt") ?? "");
-  const deadlineAt = deadlineRaw ? new Date(deadlineRaw) : null;
+  const deadlineAt = deadlineRaw ? fromDatetimeLocalValue(deadlineRaw) : null;
 
   if (!recipientName || !recipientPhone || !deliveryAddress) {
     throw new Error("Recipient name, phone, and address are required.");
@@ -92,7 +93,7 @@ export async function updateOrderAction(orderId: string, formData: FormData) {
   const occasion = String(formData.get("occasion") ?? "").trim() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const deadlineRaw = String(formData.get("deadlineAt") ?? "");
-  const deadlineAt = deadlineRaw ? new Date(deadlineRaw) : null;
+  const deadlineAt = deadlineRaw ? fromDatetimeLocalValue(deadlineRaw) : null;
 
   if (!recipientName || !recipientPhone || !deliveryAddress) {
     throw new Error("Recipient name, phone, and address are required.");

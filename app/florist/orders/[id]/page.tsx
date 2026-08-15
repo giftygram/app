@@ -7,6 +7,7 @@ import { markReadyAction } from "@/app/actions/orders";
 import { PhotoActionForm } from "@/components/photo-action-form";
 import { StatusChip } from "@/components/status-chip";
 import type { OrderStatus } from "@/lib/status";
+import { formatDubaiDateTime } from "@/lib/date";
 
 export default async function FloristOrderPage(props: PageProps<"/florist/orders/[id]">) {
   const session = await requireRole("FLORIST");
@@ -29,7 +30,7 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
           {order.deadlineAt && (
             <p className="text-sm text-muted mt-1">
               Deliver by{" "}
-              {order.deadlineAt.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+              {formatDubaiDateTime(order.deadlineAt)}
             </p>
           )}
         </div>

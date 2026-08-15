@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
+import { formatDubaiDateTime, startOfDay } from "@/lib/date";
 import { cn } from "@/lib/cn";
 
 export default async function FloristQueuePage() {
@@ -16,7 +17,7 @@ export default async function FloristQueuePage() {
       where: {
         floristId: session.employeeId,
         status: { in: ["READY", "ASSIGNED_DRIVER", "OUT_FOR_DELIVERY", "DELIVERED"] },
-        updatedAt: { gte: startOfToday() },
+        updatedAt: { gte: startOfDay(new Date()) },
       },
       orderBy: { updatedAt: "desc" },
       take: 20,
@@ -60,7 +61,7 @@ export default async function FloristQueuePage() {
                 {order.deadlineAt && (
                   <p className="text-xs text-muted mt-1">
                     Deliver by{" "}
-                    {order.deadlineAt.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                    {formatDubaiDateTime(order.deadlineAt)}
                   </p>
                 )}
               </Link>
@@ -85,10 +86,4 @@ export default async function FloristQueuePage() {
       )}
     </div>
   );
-}
-
-function startOfToday() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
 }

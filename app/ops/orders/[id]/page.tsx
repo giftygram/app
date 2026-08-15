@@ -24,6 +24,7 @@ import {
 import { ContactActions } from "@/components/contact-actions";
 import { CUSTOMER_STATUS_LABEL, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
+import { formatDubaiDateTime, formatDubaiTime } from "@/lib/date";
 import { OPS_LOCATION_REQUEST_MESSAGE } from "@/lib/whatsapp";
 import { cn } from "@/lib/cn";
 
@@ -91,7 +92,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
               )}
             >
               {overdue ? "Overdue — was due" : "Deliver by"}{" "}
-              {order.deadlineAt.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+              {formatDubaiDateTime(order.deadlineAt)}
             </p>
           )}
         </div>
@@ -240,7 +241,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
             <p className="text-sm text-muted italic">
               Waiting on customer approval
               {order.approvalDeadline &&
-                ` — auto-approves at ${order.approvalDeadline.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
+                ` — auto-approves at ${formatDubaiTime(order.approvalDeadline)}`}
               .
             </p>
           ) : !order.driver && !order.externalDriverName ? (
@@ -298,7 +299,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
               <span className="text-muted">
                 {" "}
                 — auto-approves at{" "}
-                {order.approvalDeadline.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                {formatDubaiTime(order.approvalDeadline)}
               </span>
             </p>
           )}
@@ -345,7 +346,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                   {event.employee && <span className="text-muted"> — {event.employee.name}</span>}
                 </p>
                 <p className="text-xs text-muted">
-                  {event.createdAt.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}
+                  {formatDubaiDateTime(event.createdAt)}
                 </p>
               </div>
             </li>
