@@ -22,3 +22,15 @@ export const DRIVER_PICKUP_MESSAGE =
 
 export const OPS_LOCATION_REQUEST_MESSAGE =
   "Hello, someone sent you gift/flowers from giftygram.ae\n\nCould you please share your pin location for delivery?";
+
+export function driverDeliveryLinkMessage(link: string) {
+  return `Here is the delivery link, please make sure you take a photo of the delivery and mark the order as delivered!\n\nHere is your link:\n\n${link}`;
+}
+
+export function trackingLinkMessage(link: string) {
+  return `Here is a link to track the delivery of your order:\n\n${link}`;
+}
+
+export function readyForApprovalMessage(link: string) {
+  return `Your order is ready! Please take a look on the tracking link and approve it so we can send it out for delivery.\n\nHere is your link:\n\n${link}`;
+}

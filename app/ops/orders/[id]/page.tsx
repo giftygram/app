@@ -22,11 +22,20 @@ import {
   updateExternalDriverPhoneAction,
   updateMapsLinkAction,
 } from "@/app/actions/orders";
+import { updateEmployeePhoneAction } from "@/app/actions/employees";
 import { ContactActions } from "@/components/contact-actions";
 import { CUSTOMER_STATUS_LABEL, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
 import { formatDubaiDateTime, formatDubaiTime } from "@/lib/date";
-import { normalizePhone, OPS_LOCATION_REQUEST_MESSAGE } from "@/lib/whatsapp";
+import {
+  driverDeliveryLinkMessage,
+  normalizePhone,
+  OPS_LOCATION_REQUEST_MESSAGE,
+  readyForApprovalMessage,
+  trackingLinkMessage,
+  whatsappLink,
+} from "@/lib/whatsapp";
+import { SITE_URL } from "@/lib/site";
 import { cn } from "@/lib/cn";
 
 export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]">) {
@@ -60,9 +69,16 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   const deliveryPhoto = order.photos.find((p) => p.type === "DELIVERY");
 
   const driverLabel = order.driver?.name ?? order.externalDriverName ?? null;
+  const driverPhone = order.driver?.phone ?? order.externalDriverPhone ?? null;
   const isExternalDriver = !order.driverId && !!order.externalDriverName;
   const showDeliverySection =
     status === "ASSIGNED_DRIVER" || status === "OUT_FOR_DELIVERY" || status === "FAILED_DELIVERY";
+
+  const deliverLink = `${SITE_URL}/deliver/${order.id}`;
+  const trackingLink = `${SITE_URL}/track/${encodeURIComponent(order.orderNumber)}`;
+  // Whoever should get customer-facing links — the sender for gifted orders,
+  // or the recipient themselves when they placed the order for their own use.
+  const trackingContactPhone = order.senderPhone || order.recipientPhone;
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -191,22 +207,35 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                 {driverLabel}
                 {isExternalDriver && <span className="text-muted font-normal"> · Outside courier</span>}
               </p>
-              {isExternalDriver && order.externalDriverPhone && (
-                <a
-                  href={`tel:+${normalizePhone(order.externalDriverPhone)}`}
-                  className="text-xs font-medium text-brand hover:underline"
-                >
-                  📞 {order.externalDriverPhone}
-                </a>
-              )}
-              {isExternalDriver && !order.externalDriverPhone && (
+              {driverPhone ? (
+                <div className="flex items-center gap-3">
+                  <a
+                    href={`tel:+${normalizePhone(driverPhone)}`}
+                    className="text-xs font-medium text-brand hover:underline"
+                  >
+                    📞 {driverPhone}
+                  </a>
+                  <a
+                    href={whatsappLink(driverPhone, driverDeliveryLinkMessage(deliverLink))}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium text-brand hover:underline"
+                  >
+                    💬 WhatsApp
+                  </a>
+                </div>
+              ) : (
                 <form
-                  action={updateExternalDriverPhoneAction.bind(null, order.id)}
+                  action={
+                    order.driver
+                      ? updateEmployeePhoneAction.bind(null, order.driver.id)
+                      : updateExternalDriverPhoneAction.bind(null, order.id)
+                  }
                   className="flex gap-2"
                 >
                   <input
                     type="tel"
-                    name="externalDriverPhone"
+                    name={order.driver ? "phone" : "externalDriverPhone"}
                     required
                     placeholder="Add their phone number"
                     className="flex-1 min-w-0 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-xs placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
@@ -219,11 +248,9 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                   </SubmitButton>
                 </form>
               )}
-              {isExternalDriver && (
-                <div className="mt-0.5">
-                  <CopyLink path={`/deliver/${order.id}`} />
-                </div>
-              )}
+              <div className="mt-0.5">
+                <CopyLink path={`/deliver/${order.id}`} />
+              </div>
             </div>
           )}
 
@@ -321,14 +348,26 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-3">
           <h3 className="text-sm font-semibold text-foreground">Customer review</h3>
           {approval === "PENDING" && (
-            <p className="text-sm">
-              <span className="font-medium text-amber-700">Awaiting customer approval</span>
-              <span className="text-muted">
-                {" "}
-                — auto-approves at{" "}
-                {formatDubaiTime(order.approvalDeadline)}
-              </span>
-            </p>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-sm">
+                <span className="font-medium text-amber-700">Awaiting customer approval</span>
+                <span className="text-muted">
+                  {" "}
+                  — auto-approves at{" "}
+                  {formatDubaiTime(order.approvalDeadline)}
+                </span>
+              </p>
+              {trackingContactPhone && (
+                <a
+                  href={whatsappLink(trackingContactPhone, readyForApprovalMessage(trackingLink))}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-foreground hover:border-brand transition-colors"
+                >
+                  💬 Notify on WhatsApp
+                </a>
+              )}
+            </div>
           )}
           {approval === "APPROVED" && (
             <p className="text-sm font-medium text-emerald-700">Customer approved ✓</p>
@@ -358,7 +397,19 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
       <section className="rounded-2xl border border-line bg-surface p-4">
         <h3 className="text-sm font-semibold text-foreground mb-1">Customer tracking link</h3>
         <p className="text-xs text-muted mb-2">Share this after the order is confirmed — no login needed.</p>
-        <CopyLink path={`/track/${encodeURIComponent(order.orderNumber)}`} />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <CopyLink path={`/track/${encodeURIComponent(order.orderNumber)}`} />
+          {trackingContactPhone && (
+            <a
+              href={whatsappLink(trackingContactPhone, trackingLinkMessage(trackingLink))}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-foreground hover:border-brand transition-colors"
+            >
+              💬 Send on WhatsApp
+            </a>
+          )}
+        </div>
       </section>
 
       <section className="flex flex-col gap-3">
