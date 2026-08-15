@@ -192,6 +192,9 @@ function OrderList({ orders, emptyMessage }: { orders: OrderRow[]; emptyMessage:
                     )}
                   </div>
                   <p className="text-sm text-foreground mt-1 truncate">{order.recipientName}</p>
+                  {order.bouquetName && (
+                    <p className="text-sm font-medium text-brand truncate">{order.bouquetName}</p>
+                  )}
                   <p className="text-xs text-muted mt-0.5">
                     {order.florist ? `Florist: ${order.florist.name}` : "No florist yet"}
                     {order.driver ? ` · Driver: ${order.driver.name}` : ""}

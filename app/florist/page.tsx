@@ -53,7 +53,10 @@ export default async function FloristQueuePage() {
                     <span className="text-xs font-semibold text-amber-600">Due soon</span>
                   )}
                 </div>
-                {order.occasion && <p className="text-sm text-foreground mt-1">{order.occasion}</p>}
+                {order.bouquetName && (
+                  <p className="text-sm font-medium text-foreground mt-1">{order.bouquetName}</p>
+                )}
+                {order.occasion && <p className="text-sm text-muted mt-0.5">{order.occasion}</p>}
                 {order.deadlineAt && (
                   <p className="text-xs text-muted mt-1">
                     Deliver by{" "}
