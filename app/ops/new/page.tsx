@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createOrderAction } from "@/app/actions/orders";
 import { PhotoInput } from "@/components/photo-input";
 import { Field } from "@/components/order-form-field";
+import { DateTimeField } from "@/components/datetime-field";
 import { SubmitButton } from "@/components/submit-button";
 
 export default function NewOrderPage() {
@@ -32,7 +33,7 @@ export default function NewOrderPage() {
           useCamera={false}
           placeholder="What the bouquet should look like"
         />
-        <Field label="Deliver by" name="deadlineAt" type="datetime-local" />
+        <DateTimeField label="Deliver by" name="deadlineAt" />
         <Field label="Internal notes" name="notes" as="textarea" placeholder="Anything the team should know (not shown to customer)" />
 
         <SubmitButton

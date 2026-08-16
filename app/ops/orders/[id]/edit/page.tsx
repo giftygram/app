@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { updateOrderAction } from "@/app/actions/orders";
 import { Field } from "@/components/order-form-field";
+import { DateTimeField } from "@/components/datetime-field";
 import { SubmitButton } from "@/components/submit-button";
 import { toDatetimeLocalValue } from "@/lib/date";
 
@@ -84,10 +85,9 @@ export default async function EditOrderPage(props: PageProps<"/ops/orders/[id]/e
           placeholder="e.g. Rose Deluxe, Sunshine Mix"
           defaultValue={order.bouquetName ?? ""}
         />
-        <Field
+        <DateTimeField
           label="Deliver by"
           name="deadlineAt"
-          type="datetime-local"
           defaultValue={order.deadlineAt ? toDatetimeLocalValue(order.deadlineAt) : ""}
         />
         <Field

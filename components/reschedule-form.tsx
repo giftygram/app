@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toDatetimeLocalValue } from "@/lib/date";
+import { DateTimeField } from "@/components/datetime-field";
 
 export function RescheduleForm({
   currentDeadline,
@@ -35,13 +36,11 @@ export function RescheduleForm({
         });
       }}
     >
-      <label className="text-xs font-medium text-foreground">New delivery date &amp; time</label>
-      <input
-        type="datetime-local"
+      <DateTimeField
+        label="New delivery date & time"
         name="deadlineAt"
         required
         defaultValue={currentDeadline ? toDatetimeLocalValue(currentDeadline) : ""}
-        className="rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
       />
       <div className="flex gap-2">
         <button
