@@ -10,6 +10,7 @@ import { PhotoActionForm } from "@/components/photo-action-form";
 import { SubmitButton } from "@/components/submit-button";
 import { StatusOverride } from "@/components/status-override";
 import { MarkFailedForm } from "@/components/mark-failed-form";
+import { RescheduleForm } from "@/components/reschedule-form";
 import {
   assignDriverAction,
   assignExternalDriverAction,
@@ -19,6 +20,7 @@ import {
   opsMarkFailedAction,
   opsMarkOutForDeliveryAction,
   opsSetStatusAction,
+  rescheduleOrderAction,
   updateExternalDriverPhoneAction,
   updateMapsLinkAction,
 } from "@/app/actions/orders";
@@ -140,6 +142,13 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
           </form>
         )}
       </div>
+
+      {canCancel && (
+        <RescheduleForm
+          currentDeadline={order.deadlineAt}
+          action={rescheduleOrderAction.bind(null, order.id)}
+        />
+      )}
 
       <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-2">
         <h3 className="text-sm font-semibold text-foreground">Change status</h3>

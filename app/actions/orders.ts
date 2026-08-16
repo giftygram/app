@@ -8,7 +8,7 @@ import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
 import { savePhoto } from "@/lib/photos";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/status";
 import { approvalDeadlineFromNow, effectiveApproval } from "@/lib/approval";
-import { fromDatetimeLocalValue } from "@/lib/date";
+import { formatDubaiDateTime, fromDatetimeLocalValue } from "@/lib/date";
 
 async function logStatus(
   orderId: string,
@@ -120,6 +120,38 @@ export async function updateOrderAction(orderId: string, formData: FormData) {
   revalidatePath(`/ops/orders/${orderId}`);
   revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
   redirect(`/ops/orders/${orderId}`);
+}
+
+/**
+ * Quick, dedicated reschedule — customers sometimes ask to move their
+ * delivery to a different day. Deliberately separate from
+ * updateOrderAction (which requires re-submitting every field) so this is
+ * a two-field, low-friction action, and leaves a timeline entry so the
+ * team can see a reschedule happened instead of the deadline silently
+ * changing.
+ */
+export async function rescheduleOrderAction(orderId: string, formData: FormData) {
+  const session = await requireRole("OPERATIONS");
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+
+  const deadlineRaw = String(formData.get("deadlineAt") ?? "");
+  const deadlineAt = deadlineRaw ? fromDatetimeLocalValue(deadlineRaw) : null;
+  if (!deadlineAt) throw new Error("Choose a new delivery date and time.");
+
+  await db.order.update({ where: { id: orderId }, data: { deadlineAt } });
+  await db.statusEvent.create({
+    data: {
+      orderId,
+      fromStatus: null,
+      toStatus: `Rescheduled to ${formatDubaiDateTime(deadlineAt)}`,
+      employeeId: session.employeeId,
+    },
+  });
+
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
 }
 
 /**
