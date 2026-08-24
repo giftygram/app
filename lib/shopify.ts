@@ -43,7 +43,7 @@ export type ShopifyOrderPayload = {
 };
 
 /** Note attributes come in as an array of {name, value} — flatten to a map, matched case-insensitively since checkout field labels can vary slightly. */
-function noteAttributeMap(attrs: ShopifyOrderPayload["note_attributes"]) {
+export function noteAttributeMap(attrs: ShopifyOrderPayload["note_attributes"]) {
   const map = new Map<string, string>();
   for (const attr of attrs ?? []) {
     if (attr?.name && attr.value != null) {
@@ -54,7 +54,7 @@ function noteAttributeMap(attrs: ShopifyOrderPayload["note_attributes"]) {
 }
 
 /** "6:00 PM - 9:00 PM" → 21:00. Combined with the delivery date for deadlineAt. */
-function parseDeadline(dateStr: string | null, timeWindow: string | null): Date | null {
+export function parseDeadline(dateStr: string | null, timeWindow: string | null): Date | null {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
 
   const endTime = timeWindow?.split("-")[1]?.trim();
@@ -65,7 +65,16 @@ function parseDeadline(dateStr: string | null, timeWindow: string | null): Date 
 
   let hour = parseInt(match[1], 10) % 12;
   if (match[3].toUpperCase() === "PM") hour += 12;
-  return fromDubaiComponents(y, m, d, hour, parseInt(match[2], 10));
+  const minute = parseInt(match[2], 10);
+
+  // "12:00 AM" as a window's *end* time (e.g. "9:00 PM - 12:00 AM") means
+  // midnight at the close of that day — the start of the *next* calendar
+  // day — not the start of the same day, which would make the order look
+  // overdue the instant the day begins.
+  if (hour === 0) {
+    return new Date(fromDubaiComponents(y, m, d, 0, minute).getTime() + 24 * 60 * 60 * 1000);
+  }
+  return fromDubaiComponents(y, m, d, hour, minute);
 }
 
 /** Maps a Shopify order payload to our Order.create() input. */
@@ -111,5 +120,6 @@ export function mapShopifyOrder(order: ShopifyOrderPayload) {
     bouquetName,
     notes: notesParts.length > 0 ? notesParts.join("\n") : null,
     deadlineAt: parseDeadline(attr("Delivery Date"), attr("Delivery Time")),
+    deliveryTimeSlot: attr("Delivery Time"),
   };
 }

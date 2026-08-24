@@ -28,7 +28,7 @@ import { updateEmployeePhoneAction } from "@/app/actions/employees";
 import { ContactActions } from "@/components/contact-actions";
 import { CUSTOMER_STATUS_LABEL, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
-import { formatDubaiDateTime, formatDubaiTime } from "@/lib/date";
+import { formatDeliveryWindow, formatDubaiDateTime, formatDubaiTime } from "@/lib/date";
 import {
   driverDeliveryLinkMessage,
   normalizePhone,
@@ -118,7 +118,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
               )}
             >
               {overdue ? "Overdue — was due" : "Deliver by"}{" "}
-              {formatDubaiDateTime(order.deadlineAt)}
+              {formatDeliveryWindow(order.deadlineAt, order.deliveryTimeSlot)}
             </p>
           )}
         </div>

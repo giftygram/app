@@ -44,6 +44,11 @@ model Order {
   cardMessage      String?
   occasion         String?
   deadlineAt       DateTime? @db.Timestamptz(3)
+  // Shopify's raw delivery-time-window text (e.g. "6:00 PM - 9:00 PM"), kept
+  // as-is for display — deadlineAt only stores the window's end, computed
+  // for sorting/overdue purposes, which loses the actual customer-picked
+  // window otherwise.
+  deliveryTimeSlot String?
 
   bouquetName        String?
   referenceImageUrl  String?

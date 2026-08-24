@@ -121,6 +121,21 @@ export function formatDubaiTime(d: Date) {
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: DUBAI_TZ });
 }
 
+/** Date only, Dubai-local — "Aug 15, 2026". */
+export function formatDubaiDate(d: Date) {
+  return d.toLocaleDateString([], { dateStyle: "medium", timeZone: DUBAI_TZ });
+}
+
+/**
+ * "Aug 20, 2026 · 6:00 PM - 9:00 PM" when Shopify's actual delivery window
+ * is known, otherwise the plain computed timestamp ("Aug 20, 2026, 9:00 PM").
+ */
+export function formatDeliveryWindow(deadlineAt: Date | null, deliveryTimeSlot: string | null) {
+  if (!deadlineAt) return null;
+  if (deliveryTimeSlot) return `${formatDubaiDate(deadlineAt)} · ${deliveryTimeSlot}`;
+  return formatDubaiDateTime(deadlineAt);
+}
+
 /** Compact event timestamp: just the time today, otherwise date + time. */
 export function formatEventTime(d: Date) {
   if (isSameDay(d, new Date())) return formatDubaiTime(d);

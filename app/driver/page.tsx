@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { StatusChip } from "@/components/status-chip";
 import { isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
-import { startOfDay } from "@/lib/date";
+import { formatDeliveryWindow, startOfDay } from "@/lib/date";
 import { cn } from "@/lib/cn";
 
 export default async function DriverQueuePage() {
@@ -14,7 +14,7 @@ export default async function DriverQueuePage() {
     db.order.findMany({
       where: { driverId: session.employeeId, status: { in: ["ASSIGNED_DRIVER", "OUT_FOR_DELIVERY"] } },
       include: { photos: { where: { type: "BOUQUET" }, orderBy: { createdAt: "desc" }, take: 1 } },
-      orderBy: [{ deadlineAt: "asc" }, { createdAt: "asc" }],
+      orderBy: [{ deadlineAt: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
     }),
     db.order.findMany({
       where: { driverId: session.employeeId, status: "DELIVERED", updatedAt: { gte: startOfDay(new Date()) } },
@@ -70,7 +70,12 @@ export default async function DriverQueuePage() {
                     {order.deliveryArea ? `${order.deliveryArea} — ` : ""}
                     {order.deliveryAddress}
                   </p>
-                  {overdue && <p className="text-xs font-semibold text-red-600 mt-1">Overdue</p>}
+                  {order.deadlineAt && (
+                    <p className={cn("text-xs mt-1", overdue ? "text-red-600 font-semibold" : "text-muted")}>
+                      {overdue ? "Overdue — was due " : "Deliver by "}
+                      {formatDeliveryWindow(order.deadlineAt, order.deliveryTimeSlot)}
+                    </p>
+                  )}
                   {!overdue && dueSoon && (
                     <p className="text-xs font-semibold text-amber-600 mt-1">Due soon</p>
                   )}

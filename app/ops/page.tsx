@@ -5,7 +5,7 @@ import { DateNav } from "@/components/date-nav";
 import { DayStats } from "@/components/day-stats";
 import { ACTIVE_STATUSES, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
-import { addDays, fromDateParam, startOfDay, toDateParam } from "@/lib/date";
+import { addDays, formatDeliveryWindow, fromDateParam, startOfDay, toDateParam } from "@/lib/date";
 import { cn } from "@/lib/cn";
 
 const FILTERS: { key: string; label: string }[] = [
@@ -75,7 +75,11 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
     db.order.findMany({
       where: { AND: [dateWhere, statusWhere] },
       include: { florist: true, driver: true },
-      orderBy: [{ deadlineAt: "asc" }, { createdAt: "asc" }],
+      // Explicit nulls placement — Prisma's default for an unqualified "asc"
+      // is not guaranteed to match Postgres's own NULLS LAST default, and an
+      // order with no deadline jumping to the front of a time-sorted list is
+      // exactly the "doesn't look sorted" symptom this was reported as.
+      orderBy: [{ deadlineAt: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
       take: 200,
     }),
   ]);
@@ -195,6 +199,11 @@ function OrderList({ orders, emptyMessage }: { orders: OrderRow[]; emptyMessage:
                   <p className="text-sm text-foreground mt-1 truncate">{order.recipientName}</p>
                   {order.bouquetName && (
                     <p className="text-sm font-medium text-brand truncate">{order.bouquetName}</p>
+                  )}
+                  {order.deadlineAt && (
+                    <p className={cn("text-xs mt-0.5 font-medium", overdue ? "text-red-600" : "text-muted")}>
+                      {formatDeliveryWindow(order.deadlineAt, order.deliveryTimeSlot)}
+                    </p>
                   )}
                   <p className="text-xs text-muted mt-0.5">
                     {order.florist ? `Florist: ${order.florist.name}` : "No florist yet"}

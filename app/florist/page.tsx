@@ -2,7 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
-import { formatDubaiDateTime, startOfDay } from "@/lib/date";
+import { formatDeliveryWindow, startOfDay } from "@/lib/date";
 import { cn } from "@/lib/cn";
 
 export default async function FloristQueuePage() {
@@ -11,7 +11,7 @@ export default async function FloristQueuePage() {
   const [toDo, doneToday] = await Promise.all([
     db.order.findMany({
       where: { floristId: session.employeeId, status: "ASSIGNED_FLORIST" },
-      orderBy: [{ deadlineAt: "asc" }, { createdAt: "asc" }],
+      orderBy: [{ deadlineAt: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
     }),
     db.order.findMany({
       where: {
@@ -59,9 +59,8 @@ export default async function FloristQueuePage() {
                 )}
                 {order.occasion && <p className="text-sm text-muted mt-0.5">{order.occasion}</p>}
                 {order.deadlineAt && (
-                  <p className="text-xs text-muted mt-1">
-                    Deliver by{" "}
-                    {formatDubaiDateTime(order.deadlineAt)}
+                  <p className={cn("text-xs mt-1", overdue ? "text-red-600 font-medium" : "text-muted")}>
+                    Deliver by {formatDeliveryWindow(order.deadlineAt, order.deliveryTimeSlot)}
                   </p>
                 )}
               </Link>
