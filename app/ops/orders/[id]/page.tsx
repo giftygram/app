@@ -8,6 +8,7 @@ import { ConfirmSubmit } from "@/components/confirm-submit";
 import { CopyLink } from "@/components/copy-link";
 import { PhotoActionForm } from "@/components/photo-action-form";
 import { RetakePhotoForm } from "@/components/retake-photo-form";
+import { EditDriverForm } from "@/components/edit-driver-form";
 import { SubmitButton } from "@/components/submit-button";
 import { StatusOverride } from "@/components/status-override";
 import { MarkFailedForm } from "@/components/mark-failed-form";
@@ -23,10 +24,11 @@ import {
   opsReplaceBouquetPhotoAction,
   opsSetStatusAction,
   rescheduleOrderAction,
+  updateExternalDriverAction,
   updateExternalDriverPhoneAction,
   updateMapsLinkAction,
 } from "@/app/actions/orders";
-import { updateEmployeePhoneAction } from "@/app/actions/employees";
+import { updateDriverProfileAction, updateEmployeePhoneAction } from "@/app/actions/employees";
 import { ContactActions } from "@/components/contact-actions";
 import { CUSTOMER_STATUS_LABEL, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
@@ -266,6 +268,15 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                   </SubmitButton>
                 </form>
               )}
+              <EditDriverForm
+                currentName={driverLabel ?? ""}
+                currentPhone={driverPhone}
+                action={
+                  order.driver
+                    ? updateDriverProfileAction.bind(null, order.driver.id)
+                    : updateExternalDriverAction.bind(null, order.id)
+                }
+              />
               <div className="mt-0.5">
                 <CopyLink path={`/deliver/${order.id}`} />
               </div>

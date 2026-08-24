@@ -268,6 +268,34 @@ export async function updateExternalDriverPhoneAction(orderId: string, formData:
   revalidatePath(`/ops/orders/${orderId}`);
 }
 
+/**
+ * Corrects an outside courier's name and/or phone after they're already
+ * assigned — a typo, or Operations got the wrong number. Only this order's
+ * record, since outside couriers don't have a shared Employee profile.
+ */
+export async function updateExternalDriverAction(orderId: string, formData: FormData) {
+  await requireRole("OPERATIONS");
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (!order.externalDriverName) {
+    throw new Error("This order doesn't have an outside courier assigned.");
+  }
+
+  const name = String(formData.get("name") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  if (!name) throw new Error("Enter their name.");
+  if (!phone) throw new Error("Enter their phone number.");
+
+  await db.order.update({
+    where: { id: orderId },
+    data: { externalDriverName: name, externalDriverPhone: phone },
+  });
+
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+}
+
 export async function cancelOrderAction(orderId: string) {
   const session = await requireRole("OPERATIONS");
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });

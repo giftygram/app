@@ -44,3 +44,24 @@ export async function updateEmployeePhoneAction(employeeId: string, formData: Fo
   revalidatePath("/ops/employees");
   revalidatePath("/ops");
 }
+
+/**
+ * Corrects a team driver's name and/or phone after they're already
+ * assigned to orders — a typo, or their number changed. The Employee
+ * record is shared across every order they're on, so this fixes it
+ * everywhere at once rather than per order.
+ */
+export async function updateDriverProfileAction(employeeId: string, formData: FormData) {
+  await requireRole("OPERATIONS");
+
+  const name = String(formData.get("name") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  if (!name) throw new Error("Enter their name.");
+  if (!phone) throw new Error("Enter their phone number.");
+
+  await db.employee.update({ where: { id: employeeId }, data: { name, phone } });
+
+  revalidatePath("/ops/employees");
+  revalidatePath("/ops");
+  revalidatePath("/driver");
+}
