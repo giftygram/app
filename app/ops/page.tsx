@@ -17,6 +17,7 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "FAILED_DELIVERY", label: "Failed" },
   { key: "active", label: "Active" },
   { key: "nodate", label: "No date" },
+  { key: "pastdue", label: "Past due" },
 ];
 
 export default async function OpsBoardPage(props: PageProps<"/ops">) {
@@ -80,6 +81,37 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
           Reschedule delivery on the order.
         </p>
         <OrderList orders={orders} emptyMessage="Nothing waiting on a delivery date 🎉" />
+      </div>
+    );
+  }
+
+  // Delivery date's calendar day (Dubai) has already passed while the order
+  // is still active — a stale/failed delivery that needs re-dispatch, not
+  // just the same-day "Overdue" chip a card already shows.
+  if (filter === "pastdue") {
+    const todayStart = startOfDay(new Date());
+    const orders = await db.order.findMany({
+      where: { deadlineAt: { lt: todayStart }, status: { in: ACTIVE_STATUSES } },
+      include: { florist: true, driver: true },
+      orderBy: { deadlineAt: "asc" },
+      take: 200,
+    });
+    return (
+      <div className="flex flex-col gap-5">
+        <SearchBar q={q} />
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-foreground">
+            Past their delivery date ({orders.length})
+          </h2>
+          <Link href="/ops" className="text-sm text-brand hover:underline">
+            Back to today
+          </Link>
+        </div>
+        <p className="text-sm text-muted -mt-3">
+          Delivery date has passed and the order still isn&apos;t delivered — resolve it or use
+          Reschedule delivery to give it a new date.
+        </p>
+        <OrderList orders={orders} emptyMessage="Nothing overdue 🎉" />
       </div>
     );
   }

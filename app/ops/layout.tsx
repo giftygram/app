@@ -2,13 +2,24 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { TopBar } from "@/components/top-bar";
 import { NoDateBanner } from "@/components/no-date-banner";
+import { PastDueBanner } from "@/components/past-due-banner";
 
 export default async function OpsLayout({ children }: LayoutProps<"/ops">) {
   const session = await requireRole("OPERATIONS");
 
   return (
     <div className="flex-1 flex flex-col bg-background">
-      <TopBar name={session.name} role="OPERATIONS" title="Orders" banner={<NoDateBanner />} />
+      <TopBar
+        name={session.name}
+        role="OPERATIONS"
+        title="Orders"
+        banner={
+          <>
+            <NoDateBanner />
+            <PastDueBanner />
+          </>
+        }
+      />
       <nav className="max-w-3xl w-full mx-auto px-4 pt-4 flex gap-4 text-sm">
         <Link href="/ops" className="font-medium text-foreground hover:text-brand">
           Orders
