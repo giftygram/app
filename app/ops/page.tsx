@@ -10,6 +10,8 @@ import { cn } from "@/lib/cn";
 
 const FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "All" },
+  { key: "not_delivered", label: "Not delivered" },
+  { key: "NEW", label: "New" },
   { key: "READY", label: "Ready" },
   { key: "ASSIGNED_DRIVER", label: "Waiting for pickup" },
   { key: "OUT_FOR_DELIVERY", label: "Out for delivery" },
@@ -131,6 +133,8 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
   let statusWhere: Record<string, unknown> = {};
   if (filter === "active") {
     statusWhere = { status: { in: ACTIVE_STATUSES } };
+  } else if (filter === "not_delivered") {
+    statusWhere = { status: { not: "DELIVERED" } };
   } else if (filter !== "all") {
     statusWhere = { status: filter };
   }
