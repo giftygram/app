@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
 import { savePhoto } from "@/lib/photos";
-import { ORDER_STATUSES, type OrderStatus } from "@/lib/status";
+import { ACTIVE_STATUSES, ORDER_STATUSES, type OrderStatus } from "@/lib/status";
 import { approvalDeadlineFromNow, effectiveApproval } from "@/lib/approval";
 import { formatDubaiDateTime, fromDatetimeLocalValue } from "@/lib/date";
 
@@ -319,6 +319,84 @@ export async function markReadyAction(orderId: string, formData: FormData) {
 }
 
 /**
+ * Lets the florist swap in a better bouquet photo after already marking the
+ * order ready — a blurry or badly-lit first shot shouldn't need Operations
+ * to fix. Available for as long as the order is still active and past the
+ * "with florist" step (that's the normal mark-ready flow instead); photo
+ * history in the Photo table means this just adds a newer row, and every
+ * page that shows the bouquet photo already picks the most recent one.
+ */
+export async function retakeBouquetPhotoAction(orderId: string, formData: FormData) {
+  const session = await requireRole("FLORIST");
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (order.floristId !== session.employeeId) {
+    throw new Error("This order isn't assigned to you.");
+  }
+  if (order.status === "ASSIGNED_FLORIST" || !ACTIVE_STATUSES.includes(order.status as OrderStatus)) {
+    throw new Error("This order's bouquet photo can no longer be changed.");
+  }
+
+  const photo = formData.get("photo");
+  if (!(photo instanceof File) || photo.size === 0) {
+    throw new Error("Choose a new photo.");
+  }
+
+  const url = await savePhoto(orderId, "BOUQUET", photo);
+  await db.photo.create({ data: { orderId, type: "BOUQUET", url } });
+  await db.statusEvent.create({
+    data: { orderId, fromStatus: null, toStatus: "Bouquet photo retaken", employeeId: session.employeeId },
+  });
+
+  revalidatePath("/florist");
+  revalidatePath(`/florist/orders/${orderId}`);
+  revalidatePath("/driver");
+  revalidatePath(`/driver/orders/${orderId}`);
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+}
+
+/**
+ * Operations override for the bouquet photo — same idea as
+ * retakeBouquetPhotoAction, but works on any order regardless of who's
+ * assigned or what stage it's at, since Ops already has full override
+ * authority elsewhere (see opsSetStatusAction).
+ */
+export async function opsReplaceBouquetPhotoAction(orderId: string, formData: FormData) {
+  const session = await requireRole("OPERATIONS");
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (order.status === "NEW" || order.status === "ASSIGNED_FLORIST") {
+    throw new Error("This order doesn't have a bouquet photo yet.");
+  }
+
+  const photo = formData.get("photo");
+  if (!(photo instanceof File) || photo.size === 0) {
+    throw new Error("Choose a new photo.");
+  }
+
+  const url = await savePhoto(orderId, "BOUQUET", photo);
+  await db.photo.create({ data: { orderId, type: "BOUQUET", url } });
+  await db.statusEvent.create({
+    data: {
+      orderId,
+      fromStatus: null,
+      toStatus: "Bouquet photo replaced by Operations",
+      employeeId: session.employeeId,
+    },
+  });
+
+  revalidatePath("/florist");
+  revalidatePath(`/florist/orders/${orderId}`);
+  revalidatePath("/driver");
+  revalidatePath(`/driver/orders/${orderId}`);
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+}
+
+/**
  * Public — invoked from the customer's tracking link, no employee session.
  * The order id itself is the capability token here, same trust model as the
  * rest of the tracking page (an unguessable id embedded in a link only the
@@ -492,6 +570,40 @@ export async function markDeliveredAction(orderId: string, formData: FormData) {
   }
   await doMarkDelivered(order, photo, session.employeeId);
   redirect("/driver");
+}
+
+/**
+ * Same idea as retakeBouquetPhotoAction, for the delivery proof photo —
+ * available once the order is DELIVERED, since that's the only point the
+ * photo exists.
+ */
+export async function retakeDeliveryPhotoAction(orderId: string, formData: FormData) {
+  const session = await requireRole("DRIVER");
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (order.driverId !== session.employeeId) {
+    throw new Error("This order isn't assigned to you.");
+  }
+  if (order.status !== "DELIVERED") {
+    throw new Error("This order's delivery photo can no longer be changed.");
+  }
+
+  const photo = formData.get("photo");
+  if (!(photo instanceof File) || photo.size === 0) {
+    throw new Error("Choose a new photo.");
+  }
+
+  const url = await savePhoto(orderId, "DELIVERY", photo);
+  await db.photo.create({ data: { orderId, type: "DELIVERY", url } });
+  await db.statusEvent.create({
+    data: { orderId, fromStatus: null, toStatus: "Delivery photo retaken", employeeId: session.employeeId },
+  });
+
+  revalidatePath("/driver");
+  revalidatePath(`/driver/orders/${orderId}`);
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
 }
 
 /**

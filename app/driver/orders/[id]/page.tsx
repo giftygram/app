@@ -2,8 +2,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { markDeliveredAction, markFailedAction, markOutForDeliveryAction } from "@/app/actions/orders";
+import {
+  markDeliveredAction,
+  markFailedAction,
+  markOutForDeliveryAction,
+  retakeDeliveryPhotoAction,
+} from "@/app/actions/orders";
 import { PhotoActionForm } from "@/components/photo-action-form";
+import { RetakePhotoForm } from "@/components/retake-photo-form";
 import { SubmitButton } from "@/components/submit-button";
 import { MarkFailedForm } from "@/components/mark-failed-form";
 import { StatusChip } from "@/components/status-chip";
@@ -18,12 +24,13 @@ export default async function DriverOrderPage(props: PageProps<"/driver/orders/[
 
   const order = await db.order.findUnique({
     where: { id },
-    include: { photos: { where: { type: "BOUQUET" }, orderBy: { createdAt: "desc" }, take: 1 } },
+    include: { photos: { orderBy: { createdAt: "desc" } } },
   });
   if (!order) notFound();
   if (order.driverId !== session.employeeId) redirect("/driver");
 
-  const bouquetPhoto = order.photos[0];
+  const bouquetPhoto = order.photos.find((p) => p.type === "BOUQUET");
+  const deliveryPhoto = order.photos.find((p) => p.type === "DELIVERY");
 
   return (
     <div className="flex flex-col gap-6">
@@ -79,7 +86,15 @@ export default async function DriverOrderPage(props: PageProps<"/driver/orders/[
       )}
 
       {order.status === "DELIVERED" && (
-        <p className="text-sm text-muted text-center py-4">This order has been delivered.</p>
+        <div className="flex flex-col gap-3">
+          {deliveryPhoto && <ZoomablePhoto src={deliveryPhoto.url} alt="Delivery photo you submitted" />}
+          <p className="text-sm text-muted text-center">This order has been delivered.</p>
+          <RetakePhotoForm
+            action={retakeDeliveryPhotoAction.bind(null, order.id)}
+            photoLabel="New delivery photo"
+            triggerLabel="Photo didn't turn out well? Retake it"
+          />
+        </div>
       )}
 
       {order.status === "FAILED_DELIVERY" && (

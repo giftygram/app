@@ -3,19 +3,28 @@ import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { markReadyAction } from "@/app/actions/orders";
+import { markReadyAction, retakeBouquetPhotoAction } from "@/app/actions/orders";
 import { PhotoActionForm } from "@/components/photo-action-form";
+import { RetakePhotoForm } from "@/components/retake-photo-form";
+import { ZoomablePhoto } from "@/components/zoomable-photo";
 import { StatusChip } from "@/components/status-chip";
-import type { OrderStatus } from "@/lib/status";
+import { ACTIVE_STATUSES, type OrderStatus } from "@/lib/status";
 import { formatDubaiDateTime } from "@/lib/date";
 
 export default async function FloristOrderPage(props: PageProps<"/florist/orders/[id]">) {
   const session = await requireRole("FLORIST");
   const { id } = await props.params;
 
-  const order = await db.order.findUnique({ where: { id } });
+  const order = await db.order.findUnique({
+    where: { id },
+    include: { photos: { where: { type: "BOUQUET" }, orderBy: { createdAt: "desc" }, take: 1 } },
+  });
   if (!order) notFound();
   if (order.floristId !== session.employeeId) redirect("/florist");
+
+  const bouquetPhoto = order.photos[0];
+  const canRetake =
+    order.status !== "ASSIGNED_FLORIST" && ACTIVE_STATUSES.includes(order.status as OrderStatus);
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,7 +81,17 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
           submitLabel="Mark ready"
         />
       ) : (
-        <p className="text-sm text-muted text-center py-4">This order has already been marked ready.</p>
+        <div className="flex flex-col gap-3">
+          {bouquetPhoto && <ZoomablePhoto src={bouquetPhoto.url} alt="Bouquet you submitted" />}
+          <p className="text-sm text-muted text-center">This order has already been marked ready.</p>
+          {canRetake && (
+            <RetakePhotoForm
+              action={retakeBouquetPhotoAction.bind(null, order.id)}
+              photoLabel="New photo of the finished bouquet"
+              triggerLabel="Photo didn't turn out well? Retake it"
+            />
+          )}
+        </div>
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import { AssignSelect } from "@/components/assign-select";
 import { ConfirmSubmit } from "@/components/confirm-submit";
 import { CopyLink } from "@/components/copy-link";
 import { PhotoActionForm } from "@/components/photo-action-form";
+import { RetakePhotoForm } from "@/components/retake-photo-form";
 import { SubmitButton } from "@/components/submit-button";
 import { StatusOverride } from "@/components/status-override";
 import { MarkFailedForm } from "@/components/mark-failed-form";
@@ -19,6 +20,7 @@ import {
   opsMarkDeliveredAction,
   opsMarkFailedAction,
   opsMarkOutForDeliveryAction,
+  opsReplaceBouquetPhotoAction,
   opsSetStatusAction,
   rescheduleOrderAction,
   updateExternalDriverPhoneAction,
@@ -409,6 +411,13 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
             {bouquetPhoto && <PhotoCard label="Bouquet" url={bouquetPhoto.url} />}
             {deliveryPhoto && <PhotoCard label="Delivered" url={deliveryPhoto.url} />}
           </div>
+          {bouquetPhoto && (
+            <RetakePhotoForm
+              action={opsReplaceBouquetPhotoAction.bind(null, order.id)}
+              photoLabel="New bouquet photo"
+              triggerLabel="Replace bouquet photo"
+            />
+          )}
         </section>
       )}
 
