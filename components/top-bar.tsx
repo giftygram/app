@@ -10,10 +10,14 @@ export function TopBar({
   name,
   role,
   title,
+  banner,
 }: {
   name: string;
   role: keyof typeof ROLE_LABEL;
   title: string;
+  /** Rendered inside the same sticky header, below the main row — stays
+      pinned together with it rather than needing separate offset math. */
+  banner?: React.ReactNode;
 }) {
   return (
     <header className="sticky top-0 z-10 bg-surface/95 backdrop-blur border-b border-line">
@@ -34,6 +38,7 @@ export function TopBar({
           </form>
         </div>
       </div>
+      {banner}
     </header>
   );
 }

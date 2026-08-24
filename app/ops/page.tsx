@@ -16,6 +16,7 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "DELIVERED", label: "Delivered" },
   { key: "FAILED_DELIVERY", label: "Failed" },
   { key: "active", label: "Active" },
+  { key: "nodate", label: "No date" },
 ];
 
 export default async function OpsBoardPage(props: PageProps<"/ops">) {
@@ -50,11 +51,43 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
     );
   }
 
+  const filter = typeof searchParams.status === "string" ? searchParams.status : "all";
+
+  // Orders with no deadline at all (express checkout skips the delivery-date
+  // picker entirely) don't belong to any particular day, so this bypasses
+  // the day filter completely instead of only showing up under whichever
+  // day they happened to be created — that's exactly how they went unseen.
+  if (filter === "nodate") {
+    const orders = await db.order.findMany({
+      where: { deadlineAt: null, status: { in: ACTIVE_STATUSES } },
+      include: { florist: true, driver: true },
+      orderBy: { createdAt: "asc" },
+      take: 200,
+    });
+    return (
+      <div className="flex flex-col gap-5">
+        <SearchBar q={q} />
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-foreground">
+            No delivery date chosen ({orders.length})
+          </h2>
+          <Link href="/ops" className="text-sm text-brand hover:underline">
+            Back to today
+          </Link>
+        </div>
+        <p className="text-sm text-muted -mt-3">
+          Usually express checkout (Apple Pay, etc.) — call the customer to confirm a date, then use
+          Reschedule delivery on the order.
+        </p>
+        <OrderList orders={orders} emptyMessage="Nothing waiting on a delivery date 🎉" />
+      </div>
+    );
+  }
+
   const today = startOfDay(new Date());
   const selectedDate = fromDateParam(typeof searchParams.date === "string" ? searchParams.date : undefined);
   const dayStart = selectedDate;
   const dayEnd = addDays(selectedDate, 1);
-  const filter = typeof searchParams.status === "string" ? searchParams.status : "all";
 
   const dateWhere = {
     OR: [
