@@ -477,7 +477,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-3 text-sm">
       <span className="w-28 shrink-0 text-muted">{label}</span>
-      <span className="text-foreground">{value}</span>
+      <span className="text-foreground whitespace-pre-line">{value}</span>
     </div>
   );
 }

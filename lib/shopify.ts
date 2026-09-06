@@ -68,11 +68,14 @@ export function parseDeadline(dateStr: string | null, timeWindow: string | null)
   const minute = parseInt(match[2], 10);
 
   // "12:00 AM" as a window's *end* time (e.g. "9:00 PM - 12:00 AM") means
-  // midnight at the close of that day — the start of the *next* calendar
-  // day — not the start of the same day, which would make the order look
-  // overdue the instant the day begins.
+  // midnight at the close of that day, not the start of it — the same
+  // calendar day's delivery, just its very last moment. Using the instant
+  // exactly at the next day's 00:00 (rather than 1ms before it) used to
+  // push these orders into tomorrow's date bucket everywhere the app
+  // groups orders by day, making a delivery scheduled for tonight
+  // disappear from today's list.
   if (hour === 0) {
-    return new Date(fromDubaiComponents(y, m, d, 0, minute).getTime() + 24 * 60 * 60 * 1000);
+    return new Date(fromDubaiComponents(y, m, d, 0, minute).getTime() + 24 * 60 * 60 * 1000 - 1);
   }
   return fromDubaiComponents(y, m, d, hour, minute);
 }
