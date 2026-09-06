@@ -7,10 +7,12 @@ export function RetakePhotoForm({
   action,
   photoLabel,
   triggerLabel = "Retake photo",
+  useCamera = true,
 }: {
   action: (formData: FormData) => Promise<void>;
   photoLabel: string;
   triggerLabel?: string;
+  useCamera?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -34,6 +36,7 @@ export function RetakePhotoForm({
           setOpen(false);
         }}
         photoLabel={photoLabel}
+        useCamera={useCamera}
         submitLabel="Save new photo"
         pendingLabel="Uploading…"
       />

@@ -79,6 +79,7 @@ export default async function DriverOrderPage(props: PageProps<"/driver/orders/[
           <PhotoActionForm
             action={markDeliveredAction.bind(null, order.id)}
             photoLabel="Photo proof of delivery"
+            useCamera={false}
             submitLabel="Mark delivered"
           />
           <MarkFailedForm action={markFailedAction.bind(null, order.id)} />
@@ -93,6 +94,7 @@ export default async function DriverOrderPage(props: PageProps<"/driver/orders/[
             action={retakeDeliveryPhotoAction.bind(null, order.id)}
             photoLabel="New delivery photo"
             triggerLabel="Photo didn't turn out well? Retake it"
+            useCamera={false}
           />
         </div>
       )}

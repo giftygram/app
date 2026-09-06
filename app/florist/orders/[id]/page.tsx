@@ -78,6 +78,7 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
         <PhotoActionForm
           action={markReadyAction.bind(null, order.id)}
           photoLabel="Photo of the finished bouquet"
+          useCamera={false}
           submitLabel="Mark ready"
         />
       ) : (
@@ -89,6 +90,7 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
               action={retakeBouquetPhotoAction.bind(null, order.id)}
               photoLabel="New photo of the finished bouquet"
               triggerLabel="Photo didn't turn out well? Retake it"
+              useCamera={false}
             />
           )}
         </div>

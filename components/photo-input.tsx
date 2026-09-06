@@ -44,7 +44,7 @@ export function PhotoInput({
   label,
   required = true,
   useCamera = true,
-  placeholder = "Tap to take a photo",
+  placeholder,
   onFileReady,
 }: {
   name: string;
@@ -54,6 +54,7 @@ export function PhotoInput({
   placeholder?: string;
   onFileReady?: (ready: boolean) => void;
 }) {
+  const resolvedPlaceholder = placeholder ?? (useCamera ? "Tap to take a photo" : "Tap to add a photo");
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -92,7 +93,7 @@ export function PhotoInput({
       ) : (
         <div className="w-full aspect-square rounded-2xl border-2 border-dashed border-line flex flex-col items-center justify-center gap-2 text-muted">
           <span className="text-3xl">{busy ? "⏳" : "📷"}</span>
-          <span className="text-sm">{busy ? "Preparing photo…" : placeholder}</span>
+          <span className="text-sm">{busy ? "Preparing photo…" : resolvedPlaceholder}</span>
         </div>
       )}
       <input

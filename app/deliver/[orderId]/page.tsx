@@ -77,6 +77,7 @@ export default async function PublicDeliveryPage(props: PageProps<"/deliver/[ord
             <PhotoActionForm
               action={publicMarkDeliveredAction.bind(null, order.id)}
               photoLabel="Photo proof of delivery"
+              useCamera={false}
               submitLabel="Mark delivered"
             />
             <MarkFailedForm action={publicMarkFailedAction.bind(null, order.id)} />
