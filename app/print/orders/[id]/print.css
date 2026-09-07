@@ -1,13 +1,9 @@
-/* Self-hosted so it works offline at a print station and matches exactly —
-   drop MontaserArabic-Regular.woff2 (and .ttf as a fallback format) into
-   public/fonts/ once supplied. Until then this silently falls back to the
-   next name in the font stack, so nothing breaks in the meantime. */
+/* Self-hosted so it works offline at a print station and matches exactly. */
 @font-face {
-  font-family: "Montaser Arabic";
+  font-family: "Montserrat Arabic";
   src:
-    local("Montaser Arabic"),
-    url("/fonts/MontaserArabic-Regular.woff2") format("woff2"),
-    url("/fonts/MontaserArabic-Regular.ttf") format("truetype");
+    local("Montserrat Arabic"),
+    url("/fonts/MontserratArabic-Regular.otf") format("opentype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -158,8 +154,9 @@
   width: 100%;
   min-height: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 4mm;
   overflow: hidden;
 }
 

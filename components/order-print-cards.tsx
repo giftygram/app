@@ -175,7 +175,7 @@ export function OrderPrintCards({
               className={cn("message-card-text", !arabic && lora.className)}
               dir={arabic ? "rtl" : "ltr"}
               lang={arabic ? "ar" : "en"}
-              style={{ fontFamily: arabic ? '"Montaser Arabic", "Segoe UI", Tahoma, sans-serif' : undefined }}
+              style={{ fontFamily: arabic ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif' : undefined }}
             >
               {cardMessage}
             </p>
