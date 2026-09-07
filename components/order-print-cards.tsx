@@ -8,7 +8,7 @@ import { cn } from "@/lib/cn";
 const lora = Lora({ subsets: ["latin"], weight: ["400", "500", "600"] });
 
 const MAX_FONT_SIZE = 26;
-const MIN_FONT_SIZE = 9;
+const MIN_FONT_SIZE = 7;
 
 /** Resolves once an <img> has finished loading, or immediately if it already has. */
 function waitForImage(img: HTMLImageElement | null): Promise<void> {
