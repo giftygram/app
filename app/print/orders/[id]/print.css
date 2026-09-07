@@ -103,18 +103,17 @@
 
 /* Shown instead of a plain "Yes/No" — printing several orders in a row
    made it too easy to mix up which physical message card belonged to
-   which order card, so the actual text is a quick visual match. Clamped
-   since a long message would otherwise push the courier-ID line off the
-   bottom of a fixed-height A6 card. */
+   which order card, so the actual text is a quick visual match. The
+   string itself is pre-truncated in JS rather than clipped with CSS
+   overflow/line-clamp here — the PDF export renders this element through
+   html2canvas, which garbled Arabic text whenever this box relied on CSS
+   to clip a longer string, even though the same CSS renders correctly in
+   a live browser. */
 .ops-field-value-message {
   font-size: 7.8pt;
   font-style: italic;
   color: #4a4a4a;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
 }
 
 .ops-card-spacer {

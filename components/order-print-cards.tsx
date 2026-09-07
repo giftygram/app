@@ -57,12 +57,21 @@ export function OrderPrintCards({
 }) {
   const hasMessage = !!cardMessage;
   const arabic = hasMessage && isArabicText(cardMessage);
+  // A pre-truncated string, not CSS overflow/line-clamp: the PDF export
+  // renders this element through html2canvas, and clipping a multi-line
+  // RTL box with `overflow: hidden` (or `-webkit-line-clamp`) confused its
+  // layout engine into overlapping/garbled Arabic glyphs, even though the
+  // exact same CSS renders correctly in a live browser.
+  const cardMessageFlat = cardMessage?.replace(/\s*\n+\s*/g, " ").trim() ?? null;
+  const cardMessagePreview =
+    cardMessageFlat && cardMessageFlat.length > 130 ? `${cardMessageFlat.slice(0, 130).trim()}…` : cardMessageFlat;
 
   const headerIconRef = useRef<HTMLImageElement>(null);
   const messageLogoRef = useRef<HTMLImageElement>(null);
   const messageBoxRef = useRef<HTMLDivElement>(null);
   const messageTextRef = useRef<HTMLParagraphElement>(null);
   const [ready, setReady] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,11 +110,35 @@ export function OrderPrintCards({
     };
   }, [hasMessage, cardMessage]);
 
-  useEffect(() => {
-    if (!ready) return;
-    const timer = setTimeout(() => window.print(), 100);
-    return () => clearTimeout(timer);
-  }, [ready]);
+  // A saved PDF prints with none of the browser's own header/footer (URL,
+  // date, page count) that `window.print()` is subject to on most
+  // browsers/printers — that chrome comes from the print pipeline itself,
+  // not this page, and can't be suppressed from a webpage. Rendering each
+  // card to a canvas and assembling a real PDF file sidesteps that
+  // pipeline entirely: opening or printing the saved file never invokes it.
+  async function downloadPdf() {
+    setDownloading(true);
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      const cards = Array.from(document.querySelectorAll<HTMLElement>(".card"));
+      const doc = new jsPDF({ unit: "mm", format: [105, 148], orientation: "portrait" });
+
+      for (let i = 0; i < cards.length; i++) {
+        const canvas = await html2canvas(cards[i], { scale: 3, useCORS: true, backgroundColor: "#ffffff" });
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+        if (i > 0) doc.addPage([105, 148], "portrait");
+        doc.addImage(dataUrl, "JPEG", 0, 0, 105, 148);
+      }
+
+      doc.save(`GiftyGram-${orderNumber.replace(/[^\w-]+/g, "")}.pdf`);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <div className="print-page min-h-screen">
@@ -113,13 +146,23 @@ export function OrderPrintCards({
         <a href={`/ops/orders/${orderId}`} className="text-sm text-muted hover:text-foreground">
           ← Back to order
         </a>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="rounded-lg bg-brand text-brand-ink px-4 py-2 text-sm font-semibold hover:opacity-90 transition"
-        >
-          🖨️ Print
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-foreground hover:border-brand transition-colors"
+          >
+            🖨️ Print directly
+          </button>
+          <button
+            type="button"
+            onClick={downloadPdf}
+            disabled={!ready || downloading}
+            className="rounded-lg bg-brand text-brand-ink px-4 py-2 text-sm font-semibold hover:opacity-90 transition disabled:opacity-60 disabled:cursor-wait"
+          >
+            {downloading ? "Preparing…" : "⬇️ Download PDF"}
+          </button>
+        </div>
       </div>
 
       <div className="card ops-card">
@@ -143,8 +186,9 @@ export function OrderPrintCards({
             <div
               className="ops-field-value ops-field-value-message"
               dir={arabic ? "rtl" : "ltr"}
+              style={{ fontFamily: arabic ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif' : undefined }}
             >
-              {cardMessage ?? "No card message"}
+              {cardMessagePreview ?? "No card message"}
             </div>
           </div>
           <Field label="Customer note" value={customerNote} />
@@ -188,10 +232,17 @@ export function OrderPrintCards({
 
 function Field({ label, value }: { label: string; value: string | null }) {
   if (!value) return null;
+  const fieldArabic = isArabicText(value);
   return (
     <div>
       <div className="ops-field-label">{label}</div>
-      <div className="ops-field-value">{value}</div>
+      <div
+        className="ops-field-value"
+        dir={fieldArabic ? "rtl" : "ltr"}
+        style={{ fontFamily: fieldArabic ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif' : undefined }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
