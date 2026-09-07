@@ -133,6 +133,13 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         <Link href={`/ops/orders/${order.id}/edit`} className="text-xs font-medium text-brand hover:underline">
           Edit details
         </Link>
+        <Link
+          href={`/print/orders/${order.id}`}
+          target="_blank"
+          className="text-xs font-medium text-brand hover:underline"
+        >
+          🖨️ Print card
+        </Link>
         {canCancel && (
           <form action={cancelOrderAction.bind(null, order.id)}>
             <ConfirmSubmit
