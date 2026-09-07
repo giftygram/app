@@ -126,19 +126,21 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
             </p>
           )}
         </div>
-        <StatusChip status={status} />
+        <div className="flex flex-col items-end gap-2">
+          <Link
+            href={`/print/orders/${order.id}`}
+            target="_blank"
+            className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-foreground hover:border-brand transition-colors flex items-center gap-1.5"
+          >
+            🖨️ Print card
+          </Link>
+          <StatusChip status={status} />
+        </div>
       </div>
 
       <div className="flex items-center gap-4 -mt-3">
         <Link href={`/ops/orders/${order.id}/edit`} className="text-xs font-medium text-brand hover:underline">
           Edit details
-        </Link>
-        <Link
-          href={`/print/orders/${order.id}`}
-          target="_blank"
-          className="text-xs font-medium text-brand hover:underline"
-        >
-          🖨️ Print card
         </Link>
         {canCancel && (
           <form action={cancelOrderAction.bind(null, order.id)}>
