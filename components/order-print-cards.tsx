@@ -20,6 +20,16 @@ function waitForImage(img: HTMLImageElement | null): Promise<void> {
   });
 }
 
+/** Resolves after the browser has actually painted a frame — fonts/images
+ * resolving "loaded" doesn't guarantee layout has caught up yet (e.g. an
+ * image's `height: auto` box can still measure as 0 for a tick), so this
+ * is a belt-and-suspenders wait before trusting any measurement. */
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
 export function OrderPrintCards({
   orderId,
   orderNumber,
@@ -82,6 +92,7 @@ export function OrderPrintCards({
         waitForImage(headerIconRef.current),
         waitForImage(messageLogoRef.current),
       ]);
+      await nextPaint();
       if (cancelled) return;
 
       // Shrink-to-fit: measure against the real (now-loaded) font metrics
@@ -89,13 +100,25 @@ export function OrderPrintCards({
       // chosen here is the size that actually prints.
       const box = messageBoxRef.current;
       const text = messageTextRef.current;
-      if (hasMessage && box && text) {
+      // A zero-height box means layout hasn't actually settled despite every
+      // wait above — trust it as "doesn't fit" would shrink the font to the
+      // floor for no real reason, so skip shrinking rather than act on a
+      // measurement that can't be right.
+      if (hasMessage && box && text && box.clientHeight > 0) {
         let size = MAX_FONT_SIZE;
         text.style.fontSize = `${size}pt`;
-        while (
-          size > MIN_FONT_SIZE &&
-          (text.scrollHeight > box.clientHeight || text.scrollWidth > box.clientWidth)
-        ) {
+        // A 10% safety margin on height only, not the raw box size: the PDF
+        // export re-renders this same text through html2canvas, whose text
+        // metrics don't measure identically to the live browser, and a size
+        // that just barely fit here (a couple of px of headroom) came out
+        // clipped in the exported PDF. Width gets no such margin — wrapped,
+        // centered text's scrollWidth sits at exactly the container's full
+        // width at every font size (that's what wrapping to fill the line
+        // means), so shrinking that target just forced the floor size every
+        // time for no reason.
+        const maxHeight = box.clientHeight * 0.9;
+        const maxWidth = box.clientWidth;
+        while (size > MIN_FONT_SIZE && (text.scrollHeight > maxHeight || text.scrollWidth > maxWidth)) {
           size -= 0.5;
           text.style.fontSize = `${size}pt`;
         }
