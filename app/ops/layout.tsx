@@ -27,6 +27,9 @@ export default async function OpsLayout({ children }: LayoutProps<"/ops">) {
         <Link href="/ops/employees" className="font-medium text-muted hover:text-brand">
           Team
         </Link>
+        <Link href="/ops/reports/drivers" className="font-medium text-muted hover:text-brand">
+          Reports
+        </Link>
       </nav>
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-5">{children}</main>
     </div>
