@@ -7,7 +7,12 @@ import { cn } from "@/lib/cn";
 
 const lora = Lora({ subsets: ["latin"], weight: ["400", "500", "600"] });
 
-const MAX_FONT_SIZE = 26;
+// A short message (a couple of words) has room to grow far past what
+// actually looks elegant on a small card — capping well below the size
+// the box could technically fit keeps every message, short or long, at a
+// consistent, boutique-card scale instead of a few words looking
+// oversized just because they had the space.
+const MAX_FONT_SIZE = 18;
 const MIN_FONT_SIZE = 7;
 
 /** Resolves once an <img> has finished loading, or immediately if it already has. */
