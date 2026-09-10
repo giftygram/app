@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Lora } from "next/font/google";
 import { isArabicText } from "@/lib/language";
+import { isFarEmirate } from "@/lib/emirates";
 import { cn } from "@/lib/cn";
 
 const lora = Lora({ subsets: ["latin"], weight: ["400", "500", "600"] });
@@ -80,6 +81,8 @@ export function OrderPrintCards({
   const cardMessageFlat = cardMessage?.replace(/\s*\n+\s*/g, " ").trim() ?? null;
   const cardMessagePreview =
     cardMessageFlat && cardMessageFlat.length > 130 ? `${cardMessageFlat.slice(0, 130).trim()}…` : cardMessageFlat;
+
+  const isFar = !!deliveryArea && isFarEmirate(deliveryArea);
 
   const headerIconRef = useRef<HTMLImageElement>(null);
   const messageLogoRef = useRef<HTMLImageElement>(null);
@@ -200,9 +203,17 @@ export function OrderPrintCards({
           <span>GiftyGram Flowers — Operations card</span>
         </div>
 
-        <div>
-          <div className="ops-field-label">Order number</div>
-          <div className="ops-card-order-number">{orderNumber}</div>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="ops-field-label">Order number</div>
+            <div className="ops-card-order-number">{orderNumber}</div>
+          </div>
+          {deliveryArea && (
+            <div className={cn("ops-area-badge", isFar && "ops-area-badge-far")}>
+              {isFar && "🚗 "}
+              {deliveryArea}
+            </div>
+          )}
         </div>
 
         <div className="ops-field-grid">
@@ -221,7 +232,7 @@ export function OrderPrintCards({
           </div>
           <Field label="Customer note" value={customerNote} />
           <Field label="Recipient" value={`${recipientName} — ${recipientPhone}`} />
-          <Field label="Address" value={deliveryArea ? `${deliveryAddress}, ${deliveryArea}` : deliveryAddress} />
+          <Field label="Address" value={deliveryAddress} />
           {senderName && <Field label="Sender" value={senderPhone ? `${senderName} — ${senderPhone}` : senderName} />}
           {floristName && <Field label="Florist" value={floristName} />}
           {driverLabel && (

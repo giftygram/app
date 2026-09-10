@@ -80,6 +80,33 @@
   letter-spacing: 0.02em;
 }
 
+/* Sits next to the order number so it's one of the first two things seen —
+   the whole point is catching it before the bouquet is even started, not
+   after scanning the rest of the card. */
+.ops-area-badge {
+  flex-shrink: 0;
+  align-self: flex-start;
+  border-radius: 3mm;
+  padding: 1.5mm 3mm;
+  font-size: 9pt;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+  background: #f2f2f2;
+  color: #3a3a3a;
+  border: 0.3mm solid #dcdcdc;
+}
+
+/* A different emirate means real drive time — this needs to visually jump
+   out from every other field on the card, not just read like one more
+   line of text. */
+.ops-area-badge-far {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+  font-size: 10.5pt;
+}
+
 .ops-field-grid {
   display: flex;
   flex-direction: column;
