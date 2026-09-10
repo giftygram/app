@@ -1,8 +1,6 @@
 // The shop is based in Dubai — a delivery area naming a *different* emirate
 // means real drive time, so Operations needs to spot it at a glance and
-// dispatch it earlier than a local Dubai order. Matches full names only
-// (no short codes like "RAK") to avoid false-positives on unrelated area
-// names that happen to contain the same letters.
+// dispatch it earlier than a local Dubai order.
 const OTHER_EMIRATE_KEYWORDS = [
   "abu dhabi",
   "abudhabi",
@@ -16,7 +14,13 @@ const OTHER_EMIRATE_KEYWORDS = [
   "fujairah",
 ];
 
+// "RAK" is a common standalone abbreviation for Ras Al Khaimah — matched as
+// a whole word only (not a substring) so it doesn't false-positive on some
+// unrelated area name that happens to contain those three letters.
+const RAK_ABBREVIATION = /\brak\b/i;
+
 export function isFarEmirate(area: string): boolean {
   const normalized = area.toLowerCase();
+  if (RAK_ABBREVIATION.test(area)) return true;
   return OTHER_EMIRATE_KEYWORDS.some((keyword) => normalized.includes(keyword));
 }

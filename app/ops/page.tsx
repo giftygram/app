@@ -5,6 +5,7 @@ import { DateNav } from "@/components/date-nav";
 import { DayStats } from "@/components/day-stats";
 import { ACTIVE_STATUSES, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
+import { isFarEmirate } from "@/lib/emirates";
 import { addDays, formatDeliveryWindow, fromDateParam, startOfDay, toDateParam } from "@/lib/date";
 import { cn } from "@/lib/cn";
 
@@ -280,7 +281,22 @@ function OrderList({ orders, emptyMessage }: { orders: OrderRow[]; emptyMessage:
                     {!order.driver && order.externalDriverName ? ` · Driver: ${order.externalDriverName}` : ""}
                   </p>
                 </div>
-                <StatusChip status={status} />
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  {order.deliveryArea && (
+                    <span
+                      className={cn(
+                        "text-[11px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap",
+                        isFarEmirate(order.deliveryArea)
+                          ? "bg-red-50 text-red-600 border border-red-200"
+                          : "bg-background text-muted border border-line"
+                      )}
+                    >
+                      {isFarEmirate(order.deliveryArea) && "🚗 "}
+                      {order.deliveryArea}
+                    </span>
+                  )}
+                  <StatusChip status={status} />
+                </div>
               </div>
             </Link>
           </li>
