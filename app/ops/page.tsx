@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { StatusChip } from "@/components/status-chip";
 import { DateNav } from "@/components/date-nav";
 import { DayStats } from "@/components/day-stats";
+import { TimeSlotFilter } from "@/components/time-slot-filter";
 import { ACTIVE_STATUSES, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
 import { isFarEmirate } from "@/lib/emirates";
@@ -123,6 +124,7 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
   const selectedDate = fromDateParam(typeof searchParams.date === "string" ? searchParams.date : undefined);
   const dayStart = selectedDate;
   const dayEnd = addDays(selectedDate, 1);
+  const slot = typeof searchParams.slot === "string" ? searchParams.slot : "";
 
   const dateWhere = {
     OR: [
@@ -140,10 +142,12 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
     statusWhere = { status: filter };
   }
 
+  const slotWhere: Record<string, unknown> = slot ? { deliveryTimeSlot: slot } : {};
+
   const [dayOrders, orders] = await Promise.all([
     db.order.findMany({ where: dateWhere, select: { status: true } }),
     db.order.findMany({
-      where: { AND: [dateWhere, statusWhere] },
+      where: { AND: [dateWhere, statusWhere, slotWhere] },
       include: { florist: true, driver: true },
       // Explicit nulls placement — Prisma's default for an unqualified "asc"
       // is not guaranteed to match Postgres's own NULLS LAST default, and an
@@ -170,7 +174,7 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            href={`/ops?date=${toDateParam(selectedDate)}&status=${f.key}`}
+            href={`/ops?date=${toDateParam(selectedDate)}&status=${f.key}${slot ? `&slot=${encodeURIComponent(slot)}` : ""}`}
             className={cn(
               "shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
               filter === f.key
@@ -182,6 +186,8 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
           </Link>
         ))}
       </div>
+
+      <TimeSlotFilter value={slot} />
 
       <OrderList orders={orders} emptyMessage="No orders on this day." />
     </div>

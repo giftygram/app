@@ -1,6 +1,7 @@
 // The shop is based in Dubai — a delivery area naming a *different* emirate
 // means real drive time, so Operations needs to spot it at a glance and
-// dispatch it earlier than a local Dubai order.
+// dispatch it earlier than a local Dubai order. Covers both English and
+// Arabic spellings since customers type addresses in either.
 const OTHER_EMIRATE_KEYWORDS = [
   "abu dhabi",
   "abudhabi",
@@ -12,6 +13,31 @@ const OTHER_EMIRATE_KEYWORDS = [
   "ras al khaimah",
   "ras al-khaimah",
   "fujairah",
+  "kalba",
+  "khor fakkan",
+  "khorfakkan",
+  // Abu Dhabi
+  "أبوظبي",
+  "أبو ظبي",
+  // Sharjah, and its exclaves (Kalba, Khor Fakkan) which are administered
+  // as part of Sharjah but sit on the east coast, hours from Dubai
+  "الشارقة",
+  "شارقة",
+  "كلباء",
+  "خورفكان",
+  // Ajman
+  "عجمان",
+  // Fujairah
+  "الفجيرة",
+  "فجيرة",
+  // Ras Al Khaimah
+  "رأس الخيمة",
+  "راس الخيمة",
+  // Umm Al Quwain
+  "أم القيوين",
+  "ام القيوين",
+  // Al Ain
+  "العين",
 ];
 
 // "RAK" is a common standalone abbreviation for Ras Al Khaimah — matched as
