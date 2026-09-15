@@ -53,14 +53,32 @@ export function noteAttributeMap(attrs: ShopifyOrderPayload["note_attributes"]) 
   return (key: string) => map.get(key.toLowerCase()) || null;
 }
 
+/**
+ * Checkout's delivery-date picker sends "DD-MM-YYYY" (e.g. "19-09-2026"),
+ * not ISO order — confirmed against real Shopify order payloads after
+ * orders with a chosen delivery date were silently landing with a null
+ * deadline (and falling back to being sorted by createdAt, i.e. "today").
+ * YYYY-MM-DD is also accepted in case that ever changes back.
+ */
+function parseDateComponents(dateStr: string): [number, number, number] | null {
+  const iso = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return [+iso[1], +iso[2], +iso[3]];
+
+  const dmy = dateStr.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dmy) return [+dmy[3], +dmy[2], +dmy[1]];
+
+  return null;
+}
+
 /** "6:00 PM - 9:00 PM" → 21:00. Combined with the delivery date for deadlineAt. */
 export function parseDeadline(dateStr: string | null, timeWindow: string | null): Date | null {
-  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const components = dateStr ? parseDateComponents(dateStr) : null;
+  if (!components) return null;
+  const [y, m, d] = components;
 
   const endTime = timeWindow?.split("-")[1]?.trim();
   const match = endTime?.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
 
-  const [y, m, d] = dateStr.split("-").map(Number);
   if (!match) return fromDubaiComponents(y, m, d, 23, 59);
 
   let hour = parseInt(match[1], 10) % 12;
