@@ -11,6 +11,32 @@ function toDubaiWallClock(d: Date) {
   return new Date(d.getTime() + DUBAI_OFFSET_MS);
 }
 
+/**
+ * The five fixed three-hour windows Shopify's checkout offers. Shared with
+ * the Ops time-slot filter dropdown so the two can never drift apart.
+ */
+export const DELIVERY_TIME_WINDOWS = [
+  { label: "9:00 AM - 12:00 PM", startMin: 9 * 60, endMin: 12 * 60 },
+  { label: "12:00 PM - 3:00 PM", startMin: 12 * 60, endMin: 15 * 60 },
+  { label: "3:00 PM - 6:00 PM", startMin: 15 * 60, endMin: 18 * 60 },
+  { label: "6:00 PM - 9:00 PM", startMin: 18 * 60, endMin: 21 * 60 },
+  { label: "9:00 PM - 12:00 AM", startMin: 21 * 60, endMin: 24 * 60 },
+] as const;
+
+/**
+ * Maps a deadline's Dubai wall-clock time to whichever of the five windows
+ * it falls in — used whenever Operations sets/changes a deadline by hand
+ * (new order, edit, reschedule), since those flows only capture a plain
+ * date/time, not one of Shopify's window labels. Without this, a manually
+ * set deadline left deliveryTimeSlot null, so the order was invisible under
+ * the time-slot filter even though its deadline clearly fell in a window.
+ */
+export function deliveryTimeSlotFor(d: Date): string | null {
+  const dubai = toDubaiWallClock(d);
+  const minutes = dubai.getUTCHours() * 60 + dubai.getUTCMinutes();
+  return DELIVERY_TIME_WINDOWS.find((w) => minutes >= w.startMin && minutes < w.endMin)?.label ?? null;
+}
+
 /** Dubai-local YYYY-MM-DD, matching what a <input type="date"> produces. */
 export function toDateParam(d: Date) {
   const dubai = toDubaiWallClock(d);

@@ -8,7 +8,7 @@ import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
 import { savePhoto } from "@/lib/photos";
 import { ACTIVE_STATUSES, ORDER_STATUSES, type OrderStatus } from "@/lib/status";
 import { approvalDeadlineFromNow, effectiveApproval } from "@/lib/approval";
-import { formatDubaiDateTime, fromDatetimeLocalValue } from "@/lib/date";
+import { deliveryTimeSlotFor, formatDubaiDateTime, fromDatetimeLocalValue } from "@/lib/date";
 
 async function logStatus(
   orderId: string,
@@ -37,6 +37,7 @@ export async function createOrderAction(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const deadlineRaw = String(formData.get("deadlineAt") ?? "");
   const deadlineAt = deadlineRaw ? fromDatetimeLocalValue(deadlineRaw) : null;
+  const deliveryTimeSlot = deadlineAt ? deliveryTimeSlotFor(deadlineAt) : null;
 
   if (!recipientName || !recipientPhone || !deliveryAddress) {
     throw new Error("Recipient name, phone, and address are required.");
@@ -61,6 +62,7 @@ export async function createOrderAction(formData: FormData) {
       occasion,
       notes,
       deadlineAt,
+      deliveryTimeSlot,
     },
   });
 
@@ -94,6 +96,18 @@ export async function updateOrderAction(orderId: string, formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const deadlineRaw = String(formData.get("deadlineAt") ?? "");
   const deadlineAt = deadlineRaw ? fromDatetimeLocalValue(deadlineRaw) : null;
+  // Only re-derive the slot when the deadline actually moved off its
+  // previous value — recomputing it on every incidental edit (a typo'd
+  // address, say) would reclassify orders sitting exactly on a Shopify
+  // window boundary into the adjacent slot, since deliveryTimeSlotFor
+  // treats a bare deadline as "start of its slot" while Shopify's own
+  // deadlineAt is always stored as a window's *end*.
+  const deliveryTimeSlot =
+    deadlineAt && deadlineAt.getTime() !== order.deadlineAt?.getTime()
+      ? deliveryTimeSlotFor(deadlineAt)
+      : deadlineAt
+        ? order.deliveryTimeSlot
+        : null;
 
   if (!recipientName || !recipientPhone || !deliveryAddress) {
     throw new Error("Recipient name, phone, and address are required.");
@@ -113,6 +127,7 @@ export async function updateOrderAction(orderId: string, formData: FormData) {
       occasion,
       notes,
       deadlineAt,
+      deliveryTimeSlot,
     },
   });
 
@@ -138,8 +153,9 @@ export async function rescheduleOrderAction(orderId: string, formData: FormData)
   const deadlineRaw = String(formData.get("deadlineAt") ?? "");
   const deadlineAt = deadlineRaw ? fromDatetimeLocalValue(deadlineRaw) : null;
   if (!deadlineAt) throw new Error("Choose a new delivery date and time.");
+  const deliveryTimeSlot = deliveryTimeSlotFor(deadlineAt);
 
-  await db.order.update({ where: { id: orderId }, data: { deadlineAt } });
+  await db.order.update({ where: { id: orderId }, data: { deadlineAt, deliveryTimeSlot } });
   await db.statusEvent.create({
     data: {
       orderId,

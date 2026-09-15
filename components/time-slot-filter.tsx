@@ -1,18 +1,13 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { DELIVERY_TIME_WINDOWS } from "@/lib/date";
 
 // The checkout's delivery-time picker only ever produces these five fixed
-// three-hour windows — hardcoded rather than derived from the data so a
+// three-hour windows — shared with lib/date.ts's deliveryTimeSlotFor so a
 // stray/placeholder value (e.g. an abandoned "Please select a time...")
-// never shows up as a real filter option.
-const TIME_SLOTS = [
-  "9:00 AM - 12:00 PM",
-  "12:00 PM - 3:00 PM",
-  "3:00 PM - 6:00 PM",
-  "6:00 PM - 9:00 PM",
-  "9:00 PM - 12:00 AM",
-];
+// never shows up as a real filter option, and the two can't drift apart.
+const TIME_SLOTS = DELIVERY_TIME_WINDOWS.map((w) => w.label);
 
 export function TimeSlotFilter({ value }: { value: string }) {
   const router = useRouter();
