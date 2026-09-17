@@ -41,9 +41,11 @@ async function logStatus(
 
   await trackKlaviyoEvent(order.email, metricName, {
     OrderNumber: order.orderNumber,
-    // Stays on giftygram.ae via Shopify's App Proxy rather than sending
-    // customers to the app.giftygram.ae ops subdomain directly.
-    TrackingURL: `https://giftygram.ae/apps/track/${encodeURIComponent(order.orderNumber)}`,
+    // Stays on giftygram.ae — the /pages/track Liquid template iframes
+    // app.giftygram.ae/track/<order>, keyed off this ?order= param. (App
+    // Proxy would be the cleaner fix but is currently broken on Shopify's
+    // end; see next.config.ts.)
+    TrackingURL: `https://giftygram.ae/pages/track?order=${encodeURIComponent(order.orderNumber)}`,
   });
 }
 
