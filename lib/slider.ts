@@ -198,6 +198,36 @@ export function sliderAccountConfigured() {
   return Boolean(sliderPickup() && sliderAccountId() && isSliderConfigured());
 }
 
+/**
+ * Delivery instructions attached to every dropoff.
+ *
+ * Slider's own dashboard offers these as chips on the drop-off step — "Don't
+ * ring bell", "Call on arrival", "Leave at door", "Photo proof", "SMS only" —
+ * and its front-end posts the chosen ones as `task_instructions` on each
+ * dropoff. Ali wants photo proof and call-on-arrival on every order: the first
+ * order dispatched from this app came back with no proof photo at all, because
+ * the API request never asked for one.
+ *
+ * UNVERIFIED, deliberately loudly: the partner API does not document this
+ * field, and it silently accepts fields it doesn't recognise (a nonsense key
+ * returns 200 the same as a real one), so there is no response that proves
+ * this worked. The real ids live behind an internal dashboard endpoint we
+ * can't read. Strings are used rather than guessed numeric ids on purpose —
+ * a wrong id could select a *different* instruction, and "Leave at door" on a
+ * bouquet is worse than no instruction at all. Confirm the exact values with
+ * Slider, then set SLIDER_TASK_INSTRUCTIONS.
+ */
+export function sliderTaskInstructions(): string[] {
+  const configured = process.env.SLIDER_TASK_INSTRUCTIONS;
+  if (configured !== undefined) {
+    return configured
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+  return ["photo_proof", "call_on_arrival"];
+}
+
 export type SliderVehicleOption = {
   vehicle_type: "bike" | "car";
   is_available: boolean;
@@ -291,6 +321,7 @@ export async function createSliderDelivery(input: {
       longitude: input.dropoff.longitude,
       directions: input.dropoff.directions,
       contact_number: input.dropoff.contactNumber,
+      task_instructions: sliderTaskInstructions(),
     },
     // No payment_on_delivery: customers pay us online, and the delivery fee
     // comes out of the Slider wallet. Sending this object would make the

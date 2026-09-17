@@ -393,6 +393,16 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                 )}
               </div>
 
+              {order.sliderStatus === "delivered" && !deliveryPhoto && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm text-amber-900">
+                    Slider marked this delivered but sent no proof photo. We ask for one on every
+                    order; if this keeps happening, the rider isn&apos;t being prompted — worth
+                    raising with Slider.
+                  </p>
+                </div>
+              )}
+
               {order.sliderSyncError && (
                 <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 mb-1">
