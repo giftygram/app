@@ -80,7 +80,7 @@ export function parseDeadline(dateStr: string | null, timeWindow: string | null)
   const endTime = timeWindow?.split("-")[1]?.trim();
   const match = endTime?.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
 
-  if (!match) return fromDubaiComponents(y, m, d, 23, 59);
+  if (!match) return fromDubaiComponents(y, m, d, 12, 0);
 
   let hour = parseInt(match[1], 10) % 12;
   if (match[3].toUpperCase() === "PM") hour += 12;
