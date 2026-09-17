@@ -1,10 +1,24 @@
+import { redirect } from "next/navigation";
 import Image from "next/image";
 import { TrackSearchForm } from "@/components/track-search-form";
 
 // The direct link (/track/#2798) is what most customers land on from their
 // email or WhatsApp — this bare page is the fallback for the rare visitor
 // who has no link at all, just their order number.
-export default function TrackLandingPage() {
+//
+// Also doubles as the landing spot for the "Placed Order" confirmation
+// email's button, which can't safely put a raw "#" in a path segment (mail
+// clients and browsers treat it as a fragment, truncating the URL there).
+// That email links here with ?order=2798 instead, and this redirects to
+// the real order page server-side, where the "#" is safely percent-encoded.
+export default async function TrackLandingPage(props: PageProps<"/track">) {
+  const searchParams = await props.searchParams;
+  const rawOrder = typeof searchParams.order === "string" ? searchParams.order.trim() : "";
+  if (rawOrder) {
+    const orderNumber = rawOrder.startsWith("#") ? rawOrder : `#${rawOrder}`;
+    redirect(`/track/${encodeURIComponent(orderNumber)}`);
+  }
+
   return (
     <main className="flex-1 flex justify-center bg-background px-4 py-10">
       <div className="w-full max-w-sm">
