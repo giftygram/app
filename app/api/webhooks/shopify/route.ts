@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { fetchProductImageUrl, mapShopifyOrder, verifyShopifyWebhook, type ShopifyOrderPayload } from "@/lib/shopify";
+import { createUniqueTrackingToken } from "@/lib/trackingToken";
 
 // Shopify expects a fast 2xx response and retries (with backoff, then
 // disables the webhook after enough consecutive failures) on anything else —
@@ -45,7 +46,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, orderId: existing.id, deduped: true });
   }
 
-  const created = await db.order.create({ data: orderData });
+  const created = await db.order.create({
+    data: { ...orderData, trackingToken: await createUniqueTrackingToken() },
+  });
   await db.statusEvent.create({
     data: { orderId: created.id, fromStatus: null, toStatus: status, employeeId: null },
   });

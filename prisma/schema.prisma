@@ -28,6 +28,12 @@ model Employee {
 model Order {
   id              String    @id @default(cuid())
   orderNumber     String    @unique
+  // Customer-facing tracking identifier. Deliberately separate from
+  // orderNumber (sequential, printed on receipts, easy to guess) and from id
+  // (already trusted as a capability token elsewhere, e.g. /deliver/[id] —
+  // reusing it here would blur two different trust boundaries). Every code
+  // path that creates an Order sets it (see lib/trackingToken.ts).
+  trackingToken   String    @unique
   source          String // "SHOPIFY" | "WHATSAPP"
   shopifyOrderId  String?   @unique
   status          String    @default("NEW")

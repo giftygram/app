@@ -36,16 +36,21 @@ export async function logStatus(
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: { email: true, orderNumber: true },
+    select: { email: true, orderNumber: true, trackingToken: true },
   });
-  if (!order?.email) return;
+  if (!order?.email || !order.trackingToken) return;
 
   await trackKlaviyoEvent(order.email, metricName, {
     OrderNumber: order.orderNumber,
+    // The visible code a customer can type in manually — same value as the
+    // one baked into TrackingURL below, just spelled out for the email body.
+    TrackingCode: order.trackingToken,
     // Stays on giftygram.ae — the /pages/track Liquid template iframes
-    // app.giftygram.ae/track/<order>, keyed off this ?order= param. (App
-    // Proxy would be the cleaner fix but is currently broken on Shopify's
-    // end; see next.config.ts.)
-    TrackingURL: `https://giftygram.ae/pages/track?order=${encodeURIComponent(order.orderNumber)}`,
+    // app.giftygram.ae/track/<token>, keyed off this ?order= param. Uses the
+    // random trackingToken, not orderNumber: order numbers are sequential
+    // and guessable, so a link built from one would let anyone enumerate
+    // other customers' orders. (App Proxy would be the cleaner fix but is
+    // currently broken on Shopify's end; see next.config.ts.)
+    TrackingURL: `https://giftygram.ae/pages/track?order=${encodeURIComponent(order.trackingToken)}`,
   });
 }

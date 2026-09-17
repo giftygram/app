@@ -10,14 +10,12 @@ import { ApprovalCountdown } from "@/components/approval-countdown";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
 import { TrackLogo } from "@/components/track-logo";
 
-export default async function TrackPage(props: PageProps<"/track/[orderNumber]">) {
-  const { orderNumber: rawOrderNumber } = await props.params;
-  // Next doesn't decode "#" in dynamic segments (fragment ambiguity), and
-  // Shopify order numbers commonly start with one — decode defensively.
-  const orderNumber = decodeURIComponent(rawOrderNumber);
+export default async function TrackPage(props: PageProps<"/track/[token]">) {
+  const { token: rawToken } = await props.params;
+  const token = decodeURIComponent(rawToken);
 
   const order = await db.order.findUnique({
-    where: { orderNumber },
+    where: { trackingToken: token },
     include: {
       driver: true,
       photos: { orderBy: { createdAt: "desc" } },

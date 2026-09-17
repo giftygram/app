@@ -1,11 +1,23 @@
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const db = new PrismaClient({ adapter });
 
 const pin = (p: string) => bcrypt.hashSync(p, 10);
+
+// Mirrors lib/trackingToken.ts without importing it — this script builds its
+// own PrismaClient rather than the app's shared @/lib/db, and seed data never
+// needs the collision-check that module does against real orders.
+const TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+function seedTrackingToken(): string {
+  const bytes = randomBytes(10);
+  let token = "";
+  for (let i = 0; i < 10; i++) token += TOKEN_ALPHABET[bytes[i] % TOKEN_ALPHABET.length];
+  return token;
+}
 
 async function main() {
   const existing = await db.employee.count();
@@ -143,7 +155,7 @@ async function main() {
   ] as const;
 
   for (const o of orders) {
-    const order = await db.order.create({ data: { ...o } });
+    const order = await db.order.create({ data: { ...o, trackingToken: seedTrackingToken() } });
     await db.statusEvent.create({
       data: { orderId: order.id, fromStatus: null, toStatus: "NEW", employeeId: ops.id },
     });

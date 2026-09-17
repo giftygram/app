@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
+import { createUniqueTrackingToken } from "@/lib/trackingToken";
 import { savePhoto } from "@/lib/photos";
 import { ACTIVE_STATUSES, ORDER_STATUSES, type OrderStatus } from "@/lib/status";
 import { approvalDeadlineFromNow, effectiveApproval } from "@/lib/approval";
@@ -38,6 +39,7 @@ export async function createOrderAction(formData: FormData) {
   const order = await db.order.create({
     data: {
       orderNumber,
+      trackingToken: await createUniqueTrackingToken(),
       source: "WHATSAPP",
       status: "NEW",
       senderName,
@@ -123,7 +125,7 @@ export async function updateOrderAction(orderId: string, formData: FormData) {
 
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
   redirect(`/ops/orders/${orderId}`);
 }
 
@@ -157,7 +159,7 @@ export async function rescheduleOrderAction(orderId: string, formData: FormData)
 
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
 }
 
 /**
@@ -299,7 +301,7 @@ export async function updateExternalDriverAction(orderId: string, formData: Form
 
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
 }
 
 export async function cancelOrderAction(orderId: string) {
@@ -348,7 +350,7 @@ export async function markReadyAction(orderId: string, formData: FormData) {
   revalidatePath("/florist");
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
   redirect("/florist");
 }
 
@@ -388,7 +390,7 @@ export async function retakeBouquetPhotoAction(orderId: string, formData: FormDa
   revalidatePath(`/driver/orders/${orderId}`);
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
 }
 
 /**
@@ -427,7 +429,7 @@ export async function opsReplaceBouquetPhotoAction(orderId: string, formData: Fo
   revalidatePath(`/driver/orders/${orderId}`);
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
 }
 
 /**
@@ -442,7 +444,7 @@ export async function approveBouquetAction(orderId: string) {
 
   await db.order.update({ where: { id: orderId }, data: { approvalStatus: "APPROVED" } });
 
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
 }
@@ -461,7 +463,7 @@ export async function requestBouquetChangesAction(orderId: string, formData: For
   });
   await logStatus(orderId, "READY", "ASSIGNED_FLORIST", null);
 
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
   revalidatePath("/florist");
   revalidatePath(`/florist/orders/${orderId}`);
   revalidatePath("/ops");
@@ -580,7 +582,7 @@ export async function opsSetStatusAction(orderId: string, formData: FormData) {
   revalidatePath("/florist");
   revalidatePath("/driver");
   revalidatePath(`/deliver/${orderId}`);
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
 }
 
 export async function markOutForDeliveryAction(orderId: string) {
@@ -637,7 +639,7 @@ export async function retakeDeliveryPhotoAction(orderId: string, formData: FormD
   revalidatePath(`/driver/orders/${orderId}`);
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
-  revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
 }
 
 /**
