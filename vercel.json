@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/slider-sync",
+      "schedule": "* * * * *"
+    }
+  ]
+}

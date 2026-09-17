@@ -1,0 +1,134 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { db } from "@/lib/db";
+import { requireRole } from "@/lib/auth";
+import { syncAllSliderOrders, syncSliderOrder } from "@/lib/sliderSync";
+
+/**
+ * Linking an order to its Slider delivery.
+ *
+ * This replaces the sticky note — "Order #2315 / Slider: 7716" — with one
+ * field. Slider's dashboard doesn't carry our order number (orders are placed
+ * there by hand, so the API's own `order_id` reference comes back null), which
+ * leaves the Slider order number as the only thing joining the two records.
+ * Type it once and every status update and the delivery photo follow by
+ * themselves.
+ */
+export async function linkSliderOrderAction(orderId: string, formData: FormData) {
+  await requireRole("OPERATIONS");
+
+  // Slider shows it as "#64542958" on screen and in its order list, so accept
+  // the hash, and the spaces that come with copy-paste.
+  const raw = String(formData.get("sliderOrderNumber") ?? "")
+    .trim()
+    .replace(/^#/, "")
+    .replace(/\s+/g, "");
+
+  if (!/^\d{4,12}$/.test(raw)) {
+    throw new Error("Enter Slider's order number — the 8-digit one, e.g. 64542958.");
+  }
+
+  // Two of our orders pointing at one Slider delivery would quietly mirror the
+  // same rider and the same delivery photo onto both, which is worse than not
+  // linking at all — the unique index stops it, and this turns that into
+  // something Operations can act on.
+  const clash = await db.order.findUnique({
+    where: { sliderOrderNumber: raw },
+    select: { orderNumber: true },
+  });
+  if (clash) {
+    throw new Error(`Slider #${raw} is already linked to order ${clash.orderNumber}.`);
+  }
+
+  const order = await db.order.update({
+    where: { id: orderId },
+    data: { sliderOrderNumber: raw, sliderSyncError: null },
+    select: { id: true, orderNumber: true, status: true, sliderOrderNumber: true },
+  });
+
+  // Sync immediately rather than waiting for the next poll: Operations is
+  // looking at the screen right now, and a wrong number should come back as
+  // "Slider has no order with that number" while they still have Slider open.
+  await syncSliderOrder(order);
+
+  revalidateOrder(orderId, order.orderNumber);
+}
+
+/** Wrong number typed, or the delivery was re-placed in Slider under a new one. */
+export async function unlinkSliderOrderAction(orderId: string) {
+  await requireRole("OPERATIONS");
+
+  const order = await db.order.update({
+    where: { id: orderId },
+    data: {
+      sliderOrderNumber: null,
+      sliderStatus: null,
+      sliderTrackingUrl: null,
+      sliderSyncedAt: null,
+      sliderSyncError: null,
+    },
+    select: { orderNumber: true },
+  });
+
+  revalidateOrder(orderId, order.orderNumber);
+}
+
+/** "Sync now" — for when Operations doesn't want to wait for the poller. */
+export async function syncSliderOrderAction(orderId: string) {
+  await requireRole("OPERATIONS");
+
+  const order = await db.order.findUniqueOrThrow({
+    where: { id: orderId },
+    select: { id: true, orderNumber: true, status: true, sliderOrderNumber: true },
+  });
+
+  await syncSliderOrder(order);
+
+  revalidateOrder(orderId, order.orderNumber);
+}
+
+function revalidateOrder(orderId: string, orderNumber: string) {
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+  revalidatePath("/driver");
+  revalidatePath(`/deliver/${orderId}`);
+  revalidatePath(`/track/${encodeURIComponent(orderNumber)}`);
+}
+
+/**
+ * Screen-driven refresh, called from the ops board and order pages every few
+ * seconds while someone is looking (see SliderLiveRefresh).
+ *
+ * The cron behind /api/cron/slider-sync is the safety net for deliveries that
+ * finish when nobody's at a screen; this is what makes the board feel live
+ * without depending on how often the host lets a cron run. Returns whether
+ * anything actually changed, so the client only re-renders when there's
+ * something new to show.
+ */
+export async function refreshSliderOrdersAction(): Promise<boolean> {
+  await requireRole("OPERATIONS");
+
+  // Skip orders checked in the last 15 seconds: with several people on the
+  // board, un-throttled ticks would hammer Slider for the same few orders.
+  const results = await syncAllSliderOrders(15_000);
+  const changed = results.filter((result) => result.newStatus || result.photoSaved);
+  if (changed.length === 0) return false;
+
+  revalidatePath("/ops");
+  revalidatePath("/driver");
+  for (const result of changed) {
+    revalidatePath(`/ops/orders/${result.orderId}`);
+    revalidatePath(`/deliver/${result.orderId}`);
+  }
+
+  const orders = await db.order.findMany({
+    where: { id: { in: changed.map((result) => result.orderId) } },
+    select: { orderNumber: true },
+  });
+  for (const order of orders) {
+    revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+  }
+
+  return true;
+}

@@ -3,12 +3,17 @@ import { requireRole } from "@/lib/auth";
 import { TopBar } from "@/components/top-bar";
 import { NoDateBanner } from "@/components/no-date-banner";
 import { PastDueBanner } from "@/components/past-due-banner";
+import { SliderLiveRefresh } from "@/components/slider-live-refresh";
 
 export default async function OpsLayout({ children }: LayoutProps<"/ops">) {
   const session = await requireRole("OPERATIONS");
 
   return (
     <div className="flex-1 flex flex-col bg-background">
+      {/* Mounted at the layout so it survives navigation between the board and
+          an order, and so there's exactly one poller no matter which ops page
+          is open. Renders nothing. */}
+      <SliderLiveRefresh />
       <TopBar
         name={session.name}
         role="OPERATIONS"

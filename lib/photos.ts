@@ -29,3 +29,33 @@ function extensionFor(mime: string) {
   if (mime === "image/webp") return ".webp";
   return ".jpg";
 }
+
+/**
+ * Copies a photo that lives on someone else's server into our own storage.
+ *
+ * Used for Slider's proof-of-delivery photos: their URL is public and would
+ * render fine in an <img>, but hotlinking it would put a permanent hole in
+ * every past order's record the day Slider expires or moves that bucket — and
+ * the delivery photo is the one piece of evidence a customer dispute turns on.
+ * So we keep our own copy, and the rest of the app can't tell the difference
+ * between a photo a driver took here and one taken in Slider's app.
+ */
+export async function savePhotoFromUrl(
+  orderId: string,
+  type: "BOUQUET" | "DELIVERY" | "REFERENCE",
+  sourceUrl: string
+) {
+  const response = await fetch(sourceUrl, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Couldn't download photo (HTTP ${response.status}).`);
+  }
+
+  const contentType = response.headers.get("content-type") ?? "image/jpeg";
+  if (!contentType.startsWith("image/")) {
+    throw new Error(`Expected an image, got ${contentType}.`);
+  }
+
+  const blob = await response.blob();
+  const file = new File([blob], "proof", { type: contentType });
+  return savePhoto(orderId, type, file);
+}

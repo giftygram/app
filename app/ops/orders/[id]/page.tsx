@@ -29,6 +29,12 @@ import {
   updateMapsLinkAction,
 } from "@/app/actions/orders";
 import { updateDriverProfileAction, updateEmployeePhoneAction } from "@/app/actions/employees";
+import {
+  linkSliderOrderAction,
+  syncSliderOrderAction,
+  unlinkSliderOrderAction,
+} from "@/app/actions/slider";
+import { sliderStatusLabel } from "@/lib/slider";
 import { ContactActions } from "@/components/contact-actions";
 import { CUSTOMER_STATUS_LABEL, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
@@ -86,6 +92,17 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   const isExternalDriver = !order.driverId && !!order.externalDriverName;
   const showDeliverySection =
     status === "ASSIGNED_DRIVER" || status === "OUT_FOR_DELIVERY" || status === "FAILED_DELIVERY";
+
+  // Slider's riders mark pickup and delivery in Slider's own app, so linking
+  // the order there is what makes those updates — and their delivery photo —
+  // land here. Worth offering from the moment the bouquet is ready; pointless
+  // once the order is closed, unless it's already linked.
+  const showSliderSection =
+    Boolean(order.sliderOrderNumber) ||
+    status === "READY" ||
+    status === "ASSIGNED_DRIVER" ||
+    status === "OUT_FOR_DELIVERY" ||
+    status === "FAILED_DELIVERY";
 
   const deliverLink = `${SITE_URL}/deliver/${order.id}`;
   const trackingLink = `${SITE_URL}/track/${encodeURIComponent(order.orderNumber)}`;
@@ -341,6 +358,102 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
           ) : null}
         </div>
       </section>
+
+      {showSliderSection && (
+        <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-foreground">Slider delivery</h3>
+            {order.sliderOrderNumber && (
+              <span className="font-mono text-xs text-muted">#{order.sliderOrderNumber}</span>
+            )}
+          </div>
+
+          {order.sliderOrderNumber ? (
+            <>
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-3 text-sm">
+                  <span className="w-24 shrink-0 text-muted">Slider says</span>
+                  <span className="text-foreground">
+                    {sliderStatusLabel(order.sliderStatus) ?? "Not synced yet"}
+                  </span>
+                </div>
+                {order.sliderSyncedAt && (
+                  <div className="flex gap-3 text-sm">
+                    <span className="w-24 shrink-0 text-muted">Last checked</span>
+                    <span className="text-muted">{formatDubaiTime(order.sliderSyncedAt)}</span>
+                  </div>
+                )}
+                {order.sliderTrackingUrl && (
+                  <a
+                    href={order.sliderTrackingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm text-brand hover:underline"
+                  >
+                    Live rider tracking →
+                  </a>
+                )}
+              </div>
+
+              {order.sliderSyncError && (
+                <div className="rounded-xl border border-orange-200 bg-orange-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-700 mb-1">
+                    Slider sync problem
+                  </p>
+                  <p className="text-sm text-orange-900">{order.sliderSyncError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <form action={syncSliderOrderAction.bind(null, order.id)} className="flex-1">
+                  <SubmitButton
+                    pendingText="Checking…"
+                    className="w-full rounded-xl border border-line py-2.5 text-sm font-semibold text-foreground hover:border-brand transition-colors"
+                  >
+                    Sync now
+                  </SubmitButton>
+                </form>
+                <form action={unlinkSliderOrderAction.bind(null, order.id)}>
+                  <ConfirmSubmit
+                    confirmText="Unlink this Slider order?"
+                    confirmDetail="Status updates and the delivery photo will stop arriving from Slider. Anything already saved stays."
+                    confirmLabel="Yes, unlink"
+                    className="rounded-xl border border-line px-3.5 py-2.5 text-sm font-semibold text-muted hover:border-red-300 hover:text-red-600 transition-colors"
+                  >
+                    Unlink
+                  </ConfirmSubmit>
+                </form>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted">
+                Paste the order number from Slider&apos;s dashboard and its status updates and
+                delivery photo will land here on their own.
+              </p>
+              <form
+                action={linkSliderOrderAction.bind(null, order.id)}
+                className="flex flex-col gap-2"
+              >
+                <input
+                  type="text"
+                  name="sliderOrderNumber"
+                  inputMode="numeric"
+                  placeholder="Slider order number, e.g. 64542958"
+                  required
+                  className="rounded-xl border border-line bg-background px-3.5 py-2.5 text-sm placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand"
+                />
+                <SubmitButton
+                  pendingText="Linking…"
+                  className="rounded-xl border border-line py-2.5 text-sm font-semibold text-foreground hover:border-brand transition-colors"
+                >
+                  Link Slider order
+                </SubmitButton>
+              </form>
+            </>
+          )}
+        </section>
+      )}
 
       {showDeliverySection && (
         <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-4">

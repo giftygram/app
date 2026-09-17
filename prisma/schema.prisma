@@ -78,6 +78,21 @@ model Order {
 
   notes String?
 
+  // Slider is the outsourced courier network. Its drivers mark pickup,
+  // delivery and photo proof inside Slider's own app — that's how they get
+  // paid — and ignore our /deliver link, so we read their record instead of
+  // asking them to do the work twice. Orders are still placed by hand in
+  // Slider's dashboard, which means Slider's own "order_id" (our reference)
+  // comes back null; Operations pastes the Slider order number here once and
+  // that number is the entire link between the two systems.
+  sliderOrderNumber String?   @unique
+  sliderStatus      String? // Slider's raw status, kept for display/debugging
+  sliderTrackingUrl String?
+  sliderSyncedAt    DateTime? @db.Timestamptz(3)
+  // Last sync failure, shown to Operations so a mistyped number or a dead
+  // key surfaces on the order itself instead of only in the logs.
+  sliderSyncError   String?
+
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
