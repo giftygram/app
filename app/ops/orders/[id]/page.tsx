@@ -34,7 +34,8 @@ import {
   syncSliderOrderAction,
   unlinkSliderOrderAction,
 } from "@/app/actions/slider";
-import { sliderStatusLabel } from "@/lib/slider";
+import { sliderAccountConfigured, sliderStatusLabel } from "@/lib/slider";
+import { SliderOrderForm } from "@/components/slider-order-form";
 import { ContactActions } from "@/components/contact-actions";
 import { CUSTOMER_STATUS_LABEL, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
@@ -97,6 +98,10 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   // the order there is what makes those updates — and their delivery photo —
   // land here. Worth offering from the moment the bouquet is ready; pointless
   // once the order is closed, unless it's already linked.
+  // Dispatching needs the shop's pickup pin and the Slider account; until
+  // they're configured the button can only fail, so don't show one.
+  const canOrderSlider = canAssignDriver && sliderAccountConfigured();
+
   const showSliderSection =
     Boolean(order.sliderOrderNumber) ||
     status === "READY" ||
@@ -427,6 +432,16 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
             </>
           ) : (
             <>
+              {canOrderSlider && (
+                <>
+                  <SliderOrderForm orderId={order.id} />
+                  <div className="flex items-center gap-2 text-xs text-muted">
+                    <span className="h-px flex-1 bg-line" />
+                    or, if you placed it in Slider yourself
+                    <span className="h-px flex-1 bg-line" />
+                  </div>
+                </>
+              )}
               <p className="text-sm text-muted">
                 Paste the order number from Slider&apos;s dashboard and its status updates and
                 delivery photo will land here on their own.

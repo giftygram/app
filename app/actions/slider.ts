@@ -4,6 +4,13 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { syncAllSliderOrders, syncSliderOrder } from "@/lib/sliderSync";
+import { SliderError, type SliderVehicleOption } from "@/lib/slider";
+import { pinPreviewLink } from "@/lib/mapsLink";
+import {
+  dispatchOrderToSlider,
+  quoteSliderForOrder,
+  type DispatchOutcome,
+} from "@/lib/sliderDispatch";
 
 /**
  * Linking an order to its Slider delivery.
@@ -131,4 +138,89 @@ export async function refreshSliderOrdersAction(): Promise<boolean> {
   }
 
   return true;
+}
+
+/* ------------------------------------------------------------------ *
+ * Ordering a Slider rider from here
+ * ------------------------------------------------------------------ */
+
+const DISPATCH_SELECT = {
+  id: true,
+  orderNumber: true,
+  status: true,
+  approvalStatus: true,
+  approvalDeadline: true,
+  recipientName: true,
+  recipientPhone: true,
+  deliveryAddress: true,
+  deliveryArea: true,
+  mapsLink: true,
+  sliderOrderNumber: true,
+} as const;
+
+export type SliderQuoteResult =
+  | {
+      ok: true;
+      distanceKm: number;
+      durationMinutes: number;
+      pinPreview: string;
+      /** True when the pin came from the map's centre rather than the place
+       *  itself — close, but worth a second look before dispatching. */
+      pinIsApproximate: boolean;
+      address: string;
+      recipientPhone: string;
+      vehicles: SliderVehicleOption[];
+    }
+  | { ok: false; error: string };
+
+/**
+ * Prices the delivery so Operations can choose. Costs nothing and sends
+ * nothing — the wallet is only touched by orderSliderDeliveryAction.
+ */
+export async function quoteSliderDeliveryAction(orderId: string): Promise<SliderQuoteResult> {
+  await requireRole("OPERATIONS");
+
+  const order = await db.order.findUniqueOrThrow({
+    where: { id: orderId },
+    select: DISPATCH_SELECT,
+  });
+
+  try {
+    const { dropoff, fare } = await quoteSliderForOrder(order);
+    return {
+      ok: true,
+      distanceKm: fare.distance_km,
+      durationMinutes: fare.duration_minutes,
+      pinPreview: pinPreviewLink(dropoff),
+      pinIsApproximate: dropoff.pinSource === "viewport",
+      address: dropoff.address,
+      recipientPhone: dropoff.contactNumber,
+      vehicles: fare.vehicles,
+    };
+  } catch (error) {
+    if (error instanceof SliderError) return { ok: false, error: error.message };
+    throw error;
+  }
+}
+
+/**
+ * Sends the rider. This is the call that spends from the Slider wallet, so
+ * it re-checks the price against what Operations was shown and refuses
+ * rather than quietly charging a different amount.
+ */
+export async function orderSliderDeliveryAction(
+  orderId: string,
+  vehicleType: "bike" | "car" | "any",
+  expectedFare: number
+): Promise<DispatchOutcome> {
+  const session = await requireRole("OPERATIONS");
+
+  const order = await db.order.findUniqueOrThrow({
+    where: { id: orderId },
+    select: DISPATCH_SELECT,
+  });
+
+  const outcome = await dispatchOrderToSlider(order, vehicleType, expectedFare, session.employeeId);
+  if (outcome.ok) revalidateOrder(orderId, order.orderNumber);
+  return outcome;
 }

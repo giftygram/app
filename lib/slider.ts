@@ -159,3 +159,199 @@ async function failureMessage(response: Response) {
   }
   return `Slider returned HTTP ${response.status}.`;
 }
+
+/* ------------------------------------------------------------------ *
+ * Dispatching a delivery
+ * ------------------------------------------------------------------ */
+
+/**
+ * The shop. Every delivery leaves from here, so it's configuration rather
+ * than anything Operations types per order.
+ *
+ * The coordinates have no default on purpose: a guessed pickup pin sends a
+ * paid rider to the wrong street, so the app refuses to dispatch until the
+ * real one is set.
+ */
+export function sliderPickup() {
+  const latitude = Number(process.env.SLIDER_PICKUP_LAT);
+  const longitude = Number(process.env.SLIDER_PICKUP_LNG);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  return {
+    address:
+      process.env.SLIDER_PICKUP_ADDRESS ??
+      "GiftyGram Flowers - JVC - Lolow road - Dubai",
+    latitude,
+    longitude,
+    directions: process.env.SLIDER_PICKUP_DIRECTIONS ?? "R03, Ground Floor",
+    contact_number: process.env.SLIDER_PICKUP_PHONE ?? "+971509192833",
+  };
+}
+
+export function sliderAccountId() {
+  return process.env.SLIDER_ACCOUNT_ID ?? null;
+}
+
+/** Whether this app can dispatch at all — used to hide the button rather than
+ *  show Operations one that can only fail. */
+export function sliderAccountConfigured() {
+  return Boolean(sliderPickup() && sliderAccountId() && isSliderConfigured());
+}
+
+export type SliderVehicleOption = {
+  vehicle_type: "bike" | "car";
+  is_available: boolean;
+  unavailable_reason: string | null;
+  delivery_fee: number | null;
+};
+
+export type SliderFareQuote = {
+  distance_km: number;
+  duration_minutes: number;
+  vehicles: SliderVehicleOption[];
+};
+
+/**
+ * Prices a delivery before anyone commits to it. Free to call, and the fare
+ * moves with traffic — so a quote is only good for a few minutes, which is
+ * why dispatch re-checks it rather than trusting what the screen shows.
+ */
+export async function quoteSliderFare(dropoff: {
+  latitude: number;
+  longitude: number;
+}): Promise<SliderFareQuote> {
+  const pickup = sliderPickup();
+  if (!pickup) throw new SliderError("The shop's pickup coordinates aren't configured yet.");
+
+  const accountId = sliderAccountId();
+  if (!accountId) throw new SliderError("SLIDER_ACCOUNT_ID is not set.");
+
+  const body = {
+    account_id: accountId,
+    pickup: { latitude: pickup.latitude, longitude: pickup.longitude },
+    // Note the asymmetry in Slider's own API: the fare endpoint calls it
+    // "delivery", the create endpoint calls the same thing "dropoff".
+    delivery: { latitude: dropoff.latitude, longitude: dropoff.longitude },
+  };
+
+  return (await sliderPost("/deliveries/fare", body)) as SliderFareQuote;
+}
+
+export type SliderDispatch = {
+  order_number: number;
+  order_id: string;
+  status: string;
+  vehicle_type: string;
+  fare: number;
+  currency: string;
+  distance_km: number;
+  tracking_url: string;
+  created_at: string;
+};
+
+/**
+ * Sends the order to Slider's rider network. The fare is taken from the
+ * prepaid wallet at this moment — this is the call that spends money.
+ */
+export async function createSliderDelivery(input: {
+  orderNumber: string;
+  vehicleType: "bike" | "car" | "any";
+  dropoff: {
+    latitude: number;
+    longitude: number;
+    /** The written address, for a rider who'd rather read than follow a pin. */
+    address: string;
+    /** Building, floor, flat — what they need at the door. */
+    directions: string;
+    contactNumber: string;
+  };
+}): Promise<SliderDispatch> {
+  const pickup = sliderPickup();
+  if (!pickup) throw new SliderError("The shop's pickup coordinates aren't configured yet.");
+
+  const accountId = sliderAccountId();
+  if (!accountId) throw new SliderError("SLIDER_ACCOUNT_ID is not set.");
+
+  const body = {
+    // Our own reference. Slider echoes it back on every status read and
+    // webhook, which is what makes a dispatched order self-linking — no
+    // pasting a Slider number, unlike orders placed by hand in their
+    // dashboard.
+    order_id: input.orderNumber,
+    account_id: accountId,
+    // What the rider sees on their screen at pickup and at the door, so the
+    // number on our paperwork and the number on their phone are the same one.
+    display_order_id: input.orderNumber,
+    vehicle_type: input.vehicleType,
+    driver_tip: 0,
+    pickup,
+    dropoff: {
+      address: input.dropoff.address,
+      latitude: input.dropoff.latitude,
+      longitude: input.dropoff.longitude,
+      directions: input.dropoff.directions,
+      contact_number: input.dropoff.contactNumber,
+    },
+    // No payment_on_delivery: customers pay us online, and the delivery fee
+    // comes out of the Slider wallet. Sending this object would make the
+    // rider ask the recipient for money.
+  };
+
+  return (await sliderPost("/deliveries", body)) as SliderDispatch;
+}
+
+async function sliderPost(path: string, body: unknown) {
+  const apiKey = process.env.SLIDER_API_KEY;
+  if (!apiKey) throw new SliderError("SLIDER_API_KEY is not set.");
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "X-Slider-Key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw new SliderError(
+      `Couldn't reach Slider: ${error instanceof Error ? error.message : "network error"}`
+    );
+  }
+
+  if (!response.ok) {
+    throw new SliderError(await dispatchFailureMessage(response), response.status);
+  }
+
+  return response.json();
+}
+
+async function dispatchFailureMessage(response: Response) {
+  // The one Operations will actually hit, and "402" tells them nothing.
+  if (response.status === 402) {
+    return "Slider's wallet is out of balance — top it up in the Slider dashboard, then try again.";
+  }
+  if (response.status === 401) return "Slider rejected our API key.";
+
+  try {
+    const body = (await response.json()) as { message?: string };
+    if (body?.message) return body.message;
+  } catch {
+    // fall through
+  }
+  return `Slider returned HTTP ${response.status}.`;
+}
+
+/**
+ * Slider wants E.164. Our numbers are typed by hand and arrive as "05…",
+ * "9715…", "+971 5…" — this settles them into one shape.
+ */
+export function toE164(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("00")) return `+${digits.slice(2)}`;
+  if (digits.startsWith("0")) return `+971${digits.slice(1)}`;
+  if (digits.startsWith("971")) return `+${digits}`;
+  // A bare local number with no country code at all ("509192833").
+  if (digits.length === 9) return `+971${digits}`;
+  return `+${digits}`;
+}
