@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { logStatus } from "@/lib/statusLog";
-import { effectiveApproval } from "@/lib/approval";
+import { assertCanAttachCourier, shouldPromoteOnAttach } from "@/lib/dispatchReady";
 import { parseMapLink, type ParsedPin } from "@/lib/mapsLink";
 import {
   createSliderDelivery,
@@ -35,8 +35,6 @@ export type DispatchableOrder = {
   id: string;
   orderNumber: string;
   status: string;
-  approvalStatus: string;
-  approvalDeadline: Date | null;
   recipientName: string;
   recipientPhone: string;
   deliveryAddress: string;
@@ -97,17 +95,17 @@ function truncate(text: string, max: number) {
   return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** Ready for a rider at all? Mirrors assertCanDispatch in app/actions/orders.ts. */
+/**
+ * Can a rider be booked for this order at all? A bouquet still with the
+ * florist is fine — Operations books transport ahead deliberately — so the
+ * only hard stop is an order that already has a Slider rider, or one past the
+ * point of dispatch.
+ */
 export function assertSliderDispatchable(order: DispatchableOrder) {
   if (order.sliderOrderNumber) {
     throw new SliderError(`This order is already with Slider as #${order.sliderOrderNumber}.`);
   }
-  if (order.status !== "READY" && order.status !== "ASSIGNED_DRIVER") {
-    throw new Error("This order isn't ready for a driver yet.");
-  }
-  if (order.status === "READY" && effectiveApproval(order) !== "APPROVED") {
-    throw new Error("Waiting on the customer to approve the bouquet before this can be dispatched.");
-  }
+  assertCanAttachCourier(order);
 }
 
 export type SliderQuote = {
@@ -176,6 +174,11 @@ export async function dispatchOrderToSlider(
       dropoff,
     });
 
+    // Booking the rider doesn't move the order. If the bouquet is still with
+    // the florist, it stays there — otherwise it would vanish off their
+    // screen, which is keyed on `status = ASSIGNED_FLORIST`.
+    const promote = shouldPromoteOnAttach(order);
+
     await db.order.update({
       where: { id: order.id },
       data: {
@@ -189,11 +192,11 @@ export async function dispatchOrderToSlider(
         externalDriverName: "Slider",
         externalDriverPhone: null,
         driverId: null,
-        status: "ASSIGNED_DRIVER",
+        ...(promote ? { status: "ASSIGNED_DRIVER" } : {}),
       },
     });
 
-    if (order.status !== "ASSIGNED_DRIVER") {
+    if (promote && order.status !== "ASSIGNED_DRIVER") {
       await logStatus(order.id, order.status, "ASSIGNED_DRIVER", employeeId);
     }
 

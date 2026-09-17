@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/auth";
 import { syncAllSliderOrders, syncSliderOrder } from "@/lib/sliderSync";
 import { SliderError, type SliderVehicleOption } from "@/lib/slider";
 import { pinPreviewLink } from "@/lib/mapsLink";
+import { promoteDispatchReadyOrders } from "@/lib/dispatchReady";
 import {
   dispatchOrderToSlider,
   quoteSliderForOrder,
@@ -51,7 +52,12 @@ export async function linkSliderOrderAction(orderId: string, formData: FormData)
   const order = await db.order.update({
     where: { id: orderId },
     data: { sliderOrderNumber: raw, sliderSyncError: null },
-    select: { id: true, orderNumber: true, status: true, sliderOrderNumber: true },
+    select: {
+      id: true,
+      trackingToken: true,
+      status: true,
+      sliderOrderNumber: true,
+    },
   });
 
   // Sync immediately rather than waiting for the next poll: Operations is
@@ -59,7 +65,7 @@ export async function linkSliderOrderAction(orderId: string, formData: FormData)
   // "Slider has no order with that number" while they still have Slider open.
   await syncSliderOrder(order);
 
-  revalidateOrder(orderId, order.orderNumber);
+  revalidateOrder(orderId, order.trackingToken);
 }
 
 /** Wrong number typed, or the delivery was re-placed in Slider under a new one. */
@@ -75,10 +81,10 @@ export async function unlinkSliderOrderAction(orderId: string) {
       sliderSyncedAt: null,
       sliderSyncError: null,
     },
-    select: { orderNumber: true },
+    select: { trackingToken: true },
   });
 
-  revalidateOrder(orderId, order.orderNumber);
+  revalidateOrder(orderId, order.trackingToken);
 }
 
 /** "Sync now" — for when Operations doesn't want to wait for the poller. */
@@ -87,20 +93,25 @@ export async function syncSliderOrderAction(orderId: string) {
 
   const order = await db.order.findUniqueOrThrow({
     where: { id: orderId },
-    select: { id: true, orderNumber: true, status: true, sliderOrderNumber: true },
+    select: {
+      id: true,
+      trackingToken: true,
+      status: true,
+      sliderOrderNumber: true,
+    },
   });
 
   await syncSliderOrder(order);
 
-  revalidateOrder(orderId, order.orderNumber);
+  revalidateOrder(orderId, order.trackingToken);
 }
 
-function revalidateOrder(orderId: string, orderNumber: string) {
+function revalidateOrder(orderId: string, trackingToken: string) {
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
   revalidatePath("/driver");
   revalidatePath(`/deliver/${orderId}`);
-  revalidatePath(`/track/${encodeURIComponent(orderNumber)}`);
+  revalidatePath(`/track/${encodeURIComponent(trackingToken)}`);
 }
 
 /**
@@ -119,8 +130,9 @@ export async function refreshSliderOrdersAction(): Promise<boolean> {
   // Skip orders checked in the last 15 seconds: with several people on the
   // board, un-throttled ticks would hammer Slider for the same few orders.
   const results = await syncAllSliderOrders(15_000);
+  const promoted = await promoteDispatchReadyOrders();
   const changed = results.filter((result) => result.newStatus || result.photoSaved);
-  if (changed.length === 0) return false;
+  if (changed.length === 0 && promoted.length === 0) return false;
 
   revalidatePath("/ops");
   revalidatePath("/driver");
@@ -131,10 +143,10 @@ export async function refreshSliderOrdersAction(): Promise<boolean> {
 
   const orders = await db.order.findMany({
     where: { id: { in: changed.map((result) => result.orderId) } },
-    select: { orderNumber: true },
+    select: { trackingToken: true },
   });
   for (const order of orders) {
-    revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+    revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
   }
 
   return true;
@@ -147,9 +159,8 @@ export async function refreshSliderOrdersAction(): Promise<boolean> {
 const DISPATCH_SELECT = {
   id: true,
   orderNumber: true,
+  trackingToken: true,
   status: true,
-  approvalStatus: true,
-  approvalDeadline: true,
   recipientName: true,
   recipientPhone: true,
   deliveryAddress: true,
@@ -221,6 +232,6 @@ export async function orderSliderDeliveryAction(
   });
 
   const outcome = await dispatchOrderToSlider(order, vehicleType, expectedFare, session.employeeId);
-  if (outcome.ok) revalidateOrder(orderId, order.orderNumber);
+  if (outcome.ok) revalidateOrder(orderId, order.trackingToken);
   return outcome;
 }

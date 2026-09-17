@@ -5,7 +5,6 @@ import { DateNav } from "@/components/date-nav";
 import { DayStats } from "@/components/day-stats";
 import { TimeSlotFilter } from "@/components/time-slot-filter";
 import { ACTIVE_STATUSES, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
-import { effectiveApproval } from "@/lib/approval";
 import { isFarEmirate } from "@/lib/emirates";
 import { addDays, formatDeliveryWindow, fromDateParam, startOfDay, toDateParam } from "@/lib/date";
 import { cn } from "@/lib/cn";
@@ -245,7 +244,6 @@ function OrderList({ orders, emptyMessage }: { orders: OrderRow[]; emptyMessage:
         const status = order.status as OrderStatus;
         const overdue = isOverdue(order.deadlineAt, status);
         const dueSoon = isDueSoon(order.deadlineAt, status);
-        const awaitingApproval = status === "READY" && effectiveApproval(order) === "PENDING";
         return (
           <li key={order.id}>
             <Link
@@ -267,9 +265,6 @@ function OrderList({ orders, emptyMessage }: { orders: OrderRow[]; emptyMessage:
                     {overdue && <span className="text-[11px] font-semibold text-red-600">Overdue</span>}
                     {!overdue && dueSoon && (
                       <span className="text-[11px] font-semibold text-amber-600">Due soon</span>
-                    )}
-                    {awaitingApproval && (
-                      <span className="text-[11px] font-semibold text-amber-600">Awaiting approval</span>
                     )}
                   </div>
                   <p className="text-sm text-foreground mt-1 truncate">{order.recipientName}</p>

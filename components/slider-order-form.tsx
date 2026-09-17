@@ -20,8 +20,13 @@ type Step = "idle" | "choosing" | "sent";
 export function SliderOrderForm({
   orderId,
   hasMapLink,
+  bouquetReady,
 }: {
   orderId: string;
+  /** Slider dispatches the moment you confirm. When the bouquet isn't ready
+   *  the rider still comes now and waits at the shop, which is sometimes
+   *  exactly what you want and sometimes an expensive surprise — so say so. */
+  bouquetReady: boolean;
   /** Slider can't dispatch without a pin, and the pin comes from the order's
    *  map link. Shown disabled rather than hidden when it's missing: a button
    *  that quietly isn't there reads as a broken feature, while one that says
@@ -129,6 +134,12 @@ export function SliderOrderForm({
             >
               Check the pin before sending →
             </a>
+            {!bouquetReady && (
+              <p className="text-xs text-amber-700">
+                The bouquet isn&apos;t ready yet — Slider sends a rider straight away, so they
+                may be waiting at the shop.
+              </p>
+            )}
             {quote.pinIsApproximate && (
               <p className="text-xs text-amber-700">
                 This pin came from the map view, not a dropped pin — worth checking it lands on

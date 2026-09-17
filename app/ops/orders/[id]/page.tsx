@@ -38,13 +38,12 @@ import { sliderAccountConfigured, sliderStatusLabel } from "@/lib/slider";
 import { SliderOrderForm } from "@/components/slider-order-form";
 import { ContactActions } from "@/components/contact-actions";
 import { CUSTOMER_STATUS_LABEL, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
-import { effectiveApproval } from "@/lib/approval";
+import { canAttachCourier } from "@/lib/dispatchReady";
 import { formatDeliveryWindow, formatDubaiDateTime, formatDubaiTime } from "@/lib/date";
 import {
   driverDeliveryLinkMessage,
   normalizePhone,
   OPS_LOCATION_REQUEST_MESSAGE,
-  readyForApprovalMessage,
   trackingLinkMessage,
   whatsappLink,
 } from "@/lib/whatsapp";
@@ -74,15 +73,12 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   const overdue = isOverdue(order.deadlineAt, status);
   const dueSoon = isDueSoon(order.deadlineAt, status);
   const canCancel = status !== "DELIVERED" && status !== "CANCELLED";
-  const approval = status === "READY" ? effectiveApproval(order) : null;
-  // Unlike `approval` above (only meaningful while still deciding whether to
-  // dispatch), this is for showing the outcome permanently on the order's
-  // record — approvalDeadline is set once by the florist and never cleared,
-  // so it's a reliable "this order went through customer review" signal no
-  // matter what status the order is in now.
-  const reviewApproval = order.approvalDeadline ? effectiveApproval(order) : null;
-  const wasAutoApproved = order.approvalStatus === "PENDING" && reviewApproval === "APPROVED";
-  const canAssignDriver = status === "ASSIGNED_DRIVER" || (status === "READY" && approval === "APPROVED");
+  // A driver can be lined up from the moment the order lands — Operations
+  // books transport while the florist is still working. Attaching one doesn't
+  // move the order; it reaches the driver's queue once the bouquet is ready
+  // and approved (lib/dispatchReady.ts).
+  const canAssignDriver = canAttachCourier(status);
+  const bouquetReady = status === "READY" || status === "ASSIGNED_DRIVER";
 
   // Newest first, so this is always the latest revision after any redo.
   const bouquetPhoto = order.photos.find((p) => p.type === "BOUQUET");
@@ -104,8 +100,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
 
   const showSliderSection =
     Boolean(order.sliderOrderNumber) ||
-    status === "READY" ||
-    status === "ASSIGNED_DRIVER" ||
+    canAssignDriver ||
     status === "OUT_FOR_DELIVERY" ||
     status === "FAILED_DELIVERY";
 
@@ -316,6 +311,13 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
 
           {canAssignDriver ? (
             <div className="flex flex-col gap-3">
+              {!bouquetReady && (
+                <p className="text-xs text-muted">
+                  Still with the florist. You can line a driver up now — the order stays where it
+                  is and moves to &ldquo;waiting for pickup&rdquo; the moment the bouquet is
+                  marked ready.
+                </p>
+              )}
               <AssignSelect
                 orderId={order.id}
                 value={order.driverId}
@@ -351,15 +353,6 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                 </SubmitButton>
               </form>
             </div>
-          ) : approval === "PENDING" ? (
-            <p className="text-sm text-muted italic">
-              Waiting on customer approval
-              {order.approvalDeadline &&
-                ` — auto-approves at ${formatDubaiTime(order.approvalDeadline)}`}
-              .
-            </p>
-          ) : !order.driver && !order.externalDriverName ? (
-            <p className="text-sm text-muted italic">Available once the bouquet is ready.</p>
           ) : null}
         </div>
       </section>
@@ -434,7 +427,11 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
             <>
               {canOrderSlider && (
                 <>
-                  <SliderOrderForm orderId={order.id} hasMapLink={Boolean(order.mapsLink?.trim())} />
+                  <SliderOrderForm
+                    orderId={order.id}
+                    hasMapLink={Boolean(order.mapsLink?.trim())}
+                    bouquetReady={bouquetReady}
+                  />
                   <div className="flex items-center gap-2 text-xs text-muted">
                     <span className="h-px flex-1 bg-line" />
                     or, if you placed it in Slider yourself
@@ -507,47 +504,6 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
               </div>
             )}
           </div>
-        </section>
-      )}
-
-      {order.approvalDeadline && (
-        <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-3">
-          <h3 className="text-sm font-semibold text-foreground">Customer review</h3>
-          {reviewApproval === "PENDING" && (
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <p className="text-sm">
-                <span className="font-medium text-amber-700">Awaiting customer approval</span>
-                <span className="text-muted">
-                  {" "}
-                  — auto-approves at{" "}
-                  {formatDubaiTime(order.approvalDeadline)}
-                </span>
-              </p>
-              {trackingContactPhone && (
-                <a
-                  href={whatsappLink(trackingContactPhone, readyForApprovalMessage(trackingLink))}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-foreground hover:border-brand transition-colors"
-                >
-                  💬 Notify on WhatsApp
-                </a>
-              )}
-            </div>
-          )}
-          {reviewApproval === "APPROVED" && (
-            <p className="text-sm font-medium text-emerald-700">
-              {wasAutoApproved ? "Auto-approved (no response in time) ✓" : "Customer approved ✓"}
-            </p>
-          )}
-          {order.changeRequestNote && (
-            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">
-                Customer requested changes
-              </p>
-              <p className="text-sm text-amber-900">{order.changeRequestNote}</p>
-            </div>
-          )}
         </section>
       )}
 

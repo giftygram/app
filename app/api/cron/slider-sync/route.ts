@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { isSliderConfigured } from "@/lib/slider";
 import { syncAllSliderOrders } from "@/lib/sliderSync";
+import { promoteDispatchReadyOrders } from "@/lib/dispatchReady";
 
 /**
  * Polls Slider for every linked order that's still moving.
@@ -35,22 +36,29 @@ export async function GET(request: Request) {
   }
 
   const results = await syncAllSliderOrders();
+  // Backstop for orders that reached READY with a courier already attached by
+  // a route that doesn't promote them itself — an Operations status override,
+  // or a re-dispatch after a failed delivery.
+  const promoted = await promoteDispatchReadyOrders();
 
   // Only touch the cache when something actually changed — this runs every
   // few minutes and most runs find nothing new.
   const changed = results.filter((r) => r.newStatus || r.photoSaved);
-  if (changed.length > 0) {
+  if (changed.length > 0 || promoted.length > 0) {
     revalidatePath("/ops");
     revalidatePath("/driver");
     for (const result of changed) {
       revalidatePath(`/ops/orders/${result.orderId}`);
     }
+    for (const id of promoted) {
+      revalidatePath(`/ops/orders/${id}`);
+    }
     const orders = await db.order.findMany({
-      where: { id: { in: changed.map((r) => r.orderId) } },
-      select: { orderNumber: true },
+      where: { id: { in: [...changed.map((r) => r.orderId), ...promoted] } },
+      select: { trackingToken: true },
     });
     for (const order of orders) {
-      revalidatePath(`/track/${encodeURIComponent(order.orderNumber)}`);
+      revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
     }
   }
 
@@ -58,6 +66,7 @@ export async function GET(request: Request) {
     ok: true,
     checked: results.length,
     changed: changed.length,
+    promoted: promoted.length,
     errors: results.filter((r) => r.error).length,
     results,
   });

@@ -30,7 +30,3 @@ export function driverDeliveryLinkMessage(link: string) {
 export function trackingLinkMessage(link: string) {
   return `Here is a link to track the delivery of your order:\n\n${link}`;
 }
-
-export function readyForApprovalMessage(link: string) {
-  return `Your order is ready! Please take a look on the tracking link and approve it so we can send it out for delivery.\n\nHere is your link:\n\n${link}`;
-}

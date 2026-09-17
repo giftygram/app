@@ -45,7 +45,7 @@ export function StatusOverride({
       {confirmValue && (
         <ConfirmOverlay
           message={`Change status to "${STATUS_META[confirmValue].label}"?`}
-          detail="This skips the normal order flow and any checks along the way (photos, approval, etc.)."
+          detail="This skips the normal order flow and any checks along the way (photos, driver assignment, etc.)."
           confirmLabel="Yes, change status"
           danger
           pending={pending}

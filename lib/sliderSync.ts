@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { savePhotoFromUrl } from "@/lib/photos";
 import { logStatus } from "@/lib/statusLog";
 import { ACTIVE_STATUSES, type OrderStatus } from "@/lib/status";
+import { shouldPromoteOnAttach } from "@/lib/dispatchReady";
 import {
   fetchSliderDelivery,
   SliderError,
@@ -48,7 +49,7 @@ export type SliderSyncResult = {
 
 type SyncableOrder = {
   id: string;
-  orderNumber: string;
+  trackingToken: string;
   status: string;
   sliderOrderNumber: string | null;
 };
@@ -122,7 +123,16 @@ export async function syncSliderOrder(order: SyncableOrder): Promise<SliderSyncR
 
   const currentStatus = order.status as OrderStatus;
   const target = SLIDER_TO_ORDER_STATUS[delivery.status as SliderStatus] as OrderStatus | undefined;
-  const moves = Boolean(target && PROGRESS[target] > PROGRESS[currentStatus]);
+  let moves = Boolean(target && PROGRESS[target] > PROGRESS[currentStatus]);
+
+  // A rider being found, or waiting at the shop, says nothing about the
+  // bouquet — and riders are now booked while the florist is still working.
+  // Moving the order on that news would take it off the florist's screen.
+  // Anything from pickup onwards is different: the rider physically has it,
+  // so our status follows whatever Slider says.
+  if (moves && target === "ASSIGNED_DRIVER" && !shouldPromoteOnAttach(order)) {
+    moves = false;
+  }
 
   if (target && moves) {
     data.status = target;
@@ -193,7 +203,12 @@ export async function syncAllSliderOrders(maxAgeMs?: number): Promise<SliderSync
 
   const orders = await db.order.findMany({
     where,
-    select: { id: true, orderNumber: true, status: true, sliderOrderNumber: true },
+    select: {
+      id: true,
+      trackingToken: true,
+      status: true,
+      sliderOrderNumber: true,
+    },
   });
 
   // Sequential on purpose: this runs every few minutes against a handful of

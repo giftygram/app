@@ -8,9 +8,9 @@ import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
 import { createUniqueTrackingToken } from "@/lib/trackingToken";
 import { savePhoto } from "@/lib/photos";
 import { ACTIVE_STATUSES, ORDER_STATUSES, type OrderStatus } from "@/lib/status";
-import { approvalDeadlineFromNow, effectiveApproval } from "@/lib/approval";
 import { deliveryTimeSlotFor, formatDubaiDateTime, fromDatetimeLocalValue } from "@/lib/date";
 import { logStatus } from "@/lib/statusLog";
+import { assertCanAttachCourier, shouldPromoteOnAttach } from "@/lib/dispatchReady";
 
 export async function createOrderAction(formData: FormData) {
   const session = await requireRole("OPERATIONS");
@@ -200,13 +200,15 @@ export async function assignFloristAction(orderId: string, floristId: string) {
   revalidatePath("/florist");
 }
 
-function assertCanDispatch(order: { status: string; approvalStatus: string; approvalDeadline: Date | null }) {
-  if (order.status !== "READY" && order.status !== "ASSIGNED_DRIVER") {
-    throw new Error("This order isn't ready for a driver yet.");
-  }
-  if (order.status === "READY" && effectiveApproval(order) !== "APPROVED") {
-    throw new Error("Waiting on the customer to approve the bouquet before this can be dispatched.");
-  }
+/**
+ * A driver can be lined up from the moment the order exists — Operations
+ * books transport while the florist is still working rather than starting the
+ * search afterwards. What that must not do is move the order: see
+ * lib/dispatchReady.ts for why the status stays put until the bouquet is
+ * ready and approved.
+ */
+function assertCanDispatch(order: { status: string }) {
+  assertCanAttachCourier(order);
 }
 
 /** Assigns one of your own PIN-login drivers. */
@@ -216,12 +218,19 @@ export async function assignDriverAction(orderId: string, driverId: string) {
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
   assertCanDispatch(order);
 
+  const promote = shouldPromoteOnAttach(order);
+
   await db.order.update({
     where: { id: orderId },
-    data: { driverId, externalDriverName: null, externalDriverPhone: null, status: "ASSIGNED_DRIVER" },
+    data: {
+      driverId,
+      externalDriverName: null,
+      externalDriverPhone: null,
+      ...(promote ? { status: "ASSIGNED_DRIVER" } : {}),
+    },
   });
 
-  if (order.status !== "ASSIGNED_DRIVER") {
+  if (promote && order.status !== "ASSIGNED_DRIVER") {
     await logStatus(orderId, order.status, "ASSIGNED_DRIVER", session.employeeId);
   }
 
@@ -245,12 +254,19 @@ export async function assignExternalDriverAction(orderId: string, formData: Form
   if (!name) throw new Error("Enter the courier's name.");
   if (!phone) throw new Error("Enter the courier's phone number — you'll need it to reach them.");
 
+  const promote = shouldPromoteOnAttach(order);
+
   await db.order.update({
     where: { id: orderId },
-    data: { driverId: null, externalDriverName: name, externalDriverPhone: phone, status: "ASSIGNED_DRIVER" },
+    data: {
+      driverId: null,
+      externalDriverName: name,
+      externalDriverPhone: phone,
+      ...(promote ? { status: "ASSIGNED_DRIVER" } : {}),
+    },
   });
 
-  if (order.status !== "ASSIGNED_DRIVER") {
+  if (promote && order.status !== "ASSIGNED_DRIVER") {
     await logStatus(orderId, order.status, "ASSIGNED_DRIVER", session.employeeId);
   }
 
@@ -333,19 +349,32 @@ export async function markReadyAction(orderId: string, formData: FormData) {
 
   const url = await savePhoto(orderId, "BOUQUET", photo);
 
+  // Customer approval was removed: the shop was not in practice able to wait
+  // out a 15-minute window on every order, so a ready bouquet is simply
+  // ready. The approval columns stay in the schema holding the record of
+  // orders that did go through review, and nothing writes PENDING any more.
+  //
+  // If Operations already lined up a driver or a Slider rider, "ready" is the
+  // last thing the order was waiting on, so it goes straight to waiting for
+  // pickup and lands in the driver's queue without anyone pressing anything.
+  const courierAttached = Boolean(
+    order.driverId || order.externalDriverName || order.sliderOrderNumber
+  );
+  const nextStatus = courierAttached ? "ASSIGNED_DRIVER" : "READY";
+
   await db.$transaction([
     db.photo.create({ data: { orderId, type: "BOUQUET", url } }),
     db.order.update({
       where: { id: orderId },
       data: {
-        status: "READY",
-        approvalStatus: "PENDING",
-        approvalDeadline: approvalDeadlineFromNow(),
+        status: nextStatus,
+        approvalStatus: "APPROVED",
+        approvalDeadline: null,
         changeRequestNote: null,
       },
     }),
   ]);
-  await logStatus(orderId, order.status, "READY", session.employeeId);
+  await logStatus(orderId, order.status, nextStatus, session.employeeId);
 
   revalidatePath("/florist");
   revalidatePath("/ops");
@@ -438,38 +467,6 @@ export async function opsReplaceBouquetPhotoAction(orderId: string, formData: Fo
  * rest of the tracking page (an unguessable id embedded in a link only the
  * recipient has).
  */
-export async function approveBouquetAction(orderId: string) {
-  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
-  if (order.status !== "READY" || effectiveApproval(order) !== "PENDING") return;
-
-  await db.order.update({ where: { id: orderId }, data: { approvalStatus: "APPROVED" } });
-
-  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
-  revalidatePath("/ops");
-  revalidatePath(`/ops/orders/${orderId}`);
-}
-
-/** Public — see approveBouquetAction. Sends the order back to the florist. */
-export async function requestBouquetChangesAction(orderId: string, formData: FormData) {
-  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
-  if (order.status !== "READY" || effectiveApproval(order) !== "PENDING") return;
-
-  const note = String(formData.get("note") ?? "").trim();
-  if (!note) return;
-
-  await db.order.update({
-    where: { id: orderId },
-    data: { status: "ASSIGNED_FLORIST", approvalStatus: "CHANGES_REQUESTED", changeRequestNote: note },
-  });
-  await logStatus(orderId, "READY", "ASSIGNED_FLORIST", null);
-
-  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
-  revalidatePath("/florist");
-  revalidatePath(`/florist/orders/${orderId}`);
-  revalidatePath("/ops");
-  revalidatePath(`/ops/orders/${orderId}`);
-}
-
 async function doMarkOutForDelivery(order: { id: string; status: string }, employeeId: string | null) {
   if (order.status !== "ASSIGNED_DRIVER") {
     throw new Error("This order isn't waiting for pickup.");
