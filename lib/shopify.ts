@@ -131,6 +131,7 @@ export function mapShopifyOrder(order: ShopifyOrderPayload) {
     source: "SHOPIFY" as const,
     shopifyOrderId: String(order.id),
     status: "NEW" as const,
+    email: order.email?.trim() || null,
     senderName: attr("Sender Name"),
     senderPhone: attr("Sender Phone"),
     recipientName,

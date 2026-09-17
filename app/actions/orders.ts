@@ -9,6 +9,16 @@ import { savePhoto } from "@/lib/photos";
 import { ACTIVE_STATUSES, ORDER_STATUSES, type OrderStatus } from "@/lib/status";
 import { approvalDeadlineFromNow, effectiveApproval } from "@/lib/approval";
 import { deliveryTimeSlotFor, formatDubaiDateTime, fromDatetimeLocalValue } from "@/lib/date";
+import { trackKlaviyoEvent } from "@/lib/klaviyo";
+
+// Metric names Klaviyo's "Order Ready" and "Order Delivered" flows trigger
+// on — every status transition funnels through here (the manual "Change
+// status" override included), so this is the one place that needs to know
+// about them.
+const KLAVIYO_STATUS_METRICS: Partial<Record<OrderStatus, string>> = {
+  READY: "Order Ready",
+  DELIVERED: "Order Delivered",
+};
 
 async function logStatus(
   orderId: string,
@@ -18,6 +28,20 @@ async function logStatus(
 ) {
   await db.statusEvent.create({
     data: { orderId, fromStatus, toStatus, employeeId },
+  });
+
+  const metricName = KLAVIYO_STATUS_METRICS[toStatus];
+  if (!metricName) return;
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    select: { email: true, orderNumber: true },
+  });
+  if (!order?.email) return;
+
+  await trackKlaviyoEvent(order.email, metricName, {
+    OrderNumber: order.orderNumber,
+    TrackingURL: `https://app.giftygram.ae/track/${encodeURIComponent(order.orderNumber)}`,
   });
 }
 

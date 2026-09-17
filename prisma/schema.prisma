@@ -35,6 +35,10 @@ model Order {
 
   senderName       String?
   senderPhone      String?
+  // The buyer's email — Shopify's order.email, not the recipient's. Used to
+  // send status-update emails (order ready, delivered) via Klaviyo; never
+  // shown in the ops UI, since staff work off phone numbers.
+  email            String?
   recipientName    String
   recipientPhone   String
   deliveryAddress  String
