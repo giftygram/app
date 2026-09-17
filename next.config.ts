@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
         hostname: "*.supabase.co",
         pathname: "/storage/v1/object/public/**",
       },
+      {
+        // Reference images fetched from Shopify's product catalog — see
+        // fetchProductImageUrl in lib/shopify.ts.
+        protocol: "https",
+        hostname: "cdn.shopify.com",
+      },
     ],
   },
 };
