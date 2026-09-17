@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { mapShopifyOrder, verifyShopifyWebhook, type ShopifyOrderPayload } from "@/lib/shopify";
+import { fetchProductImageUrl, mapShopifyOrder, verifyShopifyWebhook, type ShopifyOrderPayload } from "@/lib/shopify";
 
 // Shopify expects a fast 2xx response and retries (with backoff, then
 // disables the webhook after enough consecutive failures) on anything else —
@@ -25,7 +25,15 @@ export async function POST(request: Request) {
   }
 
   const mapped = mapShopifyOrder(payload);
-  const { status, ...updatable } = mapped;
+
+  // The main product's photo, not the webhook payload — see
+  // fetchProductImageUrl. Only merged in on success: a transient failure
+  // (rate limit, network blip) must never overwrite an already-fetched
+  // reference image with nothing on a later retry/update.
+  const primaryProductId = payload.line_items?.[0]?.product_id;
+  const referenceImageUrl = primaryProductId ? await fetchProductImageUrl(primaryProductId) : null;
+  const orderData = referenceImageUrl ? { ...mapped, referenceImageUrl } : mapped;
+  const { status, ...updatable } = orderData;
 
   const existing = await db.order.findUnique({ where: { shopifyOrderId: mapped.shopifyOrderId } });
 
@@ -37,7 +45,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, orderId: existing.id, deduped: true });
   }
 
-  const created = await db.order.create({ data: mapped });
+  const created = await db.order.create({ data: orderData });
   await db.statusEvent.create({
     data: { orderId: created.id, fromStatus: null, toStatus: status, employeeId: null },
   });

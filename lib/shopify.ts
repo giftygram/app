@@ -28,6 +28,7 @@ type ShopifyAddress = {
 type ShopifyLineItem = {
   name?: string | null;
   quantity?: number | null;
+  product_id?: number | string | null;
 };
 
 export type ShopifyOrderPayload = {
@@ -143,4 +144,29 @@ export function mapShopifyOrder(order: ShopifyOrderPayload) {
     deadlineAt: parseDeadline(attr("Delivery Date"), attr("Delivery Time")),
     deliveryTimeSlot: attr("Delivery Time"),
   };
+}
+
+/**
+ * The order webhook's line_items only ever carry a product_id/variant_id,
+ * never an image — Shopify has to be asked separately for the product's
+ * photo. Used as the florist's reference image, since a bouquet name alone
+ * ("Customized Letter – Red Roses Bouquet") isn't enough to go on. Returns
+ * null on any failure (missing credentials, deleted product, rate limit,
+ * etc.) so a hiccup here never blocks the order itself from being saved.
+ */
+export async function fetchProductImageUrl(productId: number | string): Promise<string | null> {
+  const domain = process.env.SHOPIFY_STORE_DOMAIN;
+  const token = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+  if (!domain || !token) return null;
+
+  try {
+    const res = await fetch(`https://${domain}/admin/api/2026-07/products/${productId}.json?fields=image`, {
+      headers: { "X-Shopify-Access-Token": token },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.product?.image?.src ?? null;
+  } catch {
+    return null;
+  }
 }
