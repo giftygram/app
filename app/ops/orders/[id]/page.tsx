@@ -434,7 +434,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
             <>
               {canOrderSlider && (
                 <>
-                  <SliderOrderForm orderId={order.id} />
+                  <SliderOrderForm orderId={order.id} hasMapLink={Boolean(order.mapsLink?.trim())} />
                   <div className="flex items-center gap-2 text-xs text-muted">
                     <span className="h-px flex-1 bg-line" />
                     or, if you placed it in Slider yourself

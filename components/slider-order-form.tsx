@@ -17,7 +17,17 @@ import {
  */
 type Step = "idle" | "choosing" | "sent";
 
-export function SliderOrderForm({ orderId }: { orderId: string }) {
+export function SliderOrderForm({
+  orderId,
+  hasMapLink,
+}: {
+  orderId: string;
+  /** Slider can't dispatch without a pin, and the pin comes from the order's
+   *  map link. Shown disabled rather than hidden when it's missing: a button
+   *  that quietly isn't there reads as a broken feature, while one that says
+   *  what it needs sends Operations to the field right above it. */
+  hasMapLink: boolean;
+}) {
   const [step, setStep] = useState<Step>("idle");
   const [quote, setQuote] = useState<Extract<SliderQuoteResult, { ok: true }> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,14 +95,22 @@ export function SliderOrderForm({ orderId }: { orderId: string }) {
       )}
 
       {step === "idle" && (
-        <button
-          type="button"
-          onClick={getQuote}
-          disabled={pending}
-          className="w-full rounded-xl bg-brand text-brand-ink font-semibold py-3 text-sm hover:opacity-90 transition disabled:opacity-60"
-        >
-          {pending ? "Checking price…" : "Order Slider rider"}
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={getQuote}
+            disabled={pending || !hasMapLink}
+            className="w-full rounded-xl bg-brand text-brand-ink font-semibold py-3 text-sm hover:opacity-90 transition disabled:opacity-40 disabled:hover:opacity-40"
+          >
+            {pending ? "Checking price…" : "Order Slider rider"}
+          </button>
+          {!hasMapLink && (
+            <p className="text-xs text-muted">
+              Add the recipient&apos;s pin in <span className="text-foreground">Google Maps link</span>{" "}
+              above first — Slider needs it to dispatch.
+            </p>
+          )}
+        </>
       )}
 
       {step === "choosing" && quote && (
