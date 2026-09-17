@@ -41,7 +41,9 @@ async function logStatus(
 
   await trackKlaviyoEvent(order.email, metricName, {
     OrderNumber: order.orderNumber,
-    TrackingURL: `https://app.giftygram.ae/track/${encodeURIComponent(order.orderNumber)}`,
+    // Stays on giftygram.ae via Shopify's App Proxy rather than sending
+    // customers to the app.giftygram.ae ops subdomain directly.
+    TrackingURL: `https://giftygram.ae/apps/track/${encodeURIComponent(order.orderNumber)}`,
   });
 }
 

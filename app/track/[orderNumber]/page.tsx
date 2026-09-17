@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Image from "next/image";
 import { db } from "@/lib/db";
 import { CUSTOMER_STEP_MESSAGE, CUSTOMER_TIMELINE, type OrderStatus } from "@/lib/status";
 import { effectiveApproval } from "@/lib/approval";
@@ -9,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { ApprovalActions } from "@/components/approval-actions";
 import { ApprovalCountdown } from "@/components/approval-countdown";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
+import { TrackLogo } from "@/components/track-logo";
 
 export default async function TrackPage(props: PageProps<"/track/[orderNumber]">) {
   const { orderNumber: rawOrderNumber } = await props.params;
@@ -50,13 +50,7 @@ export default async function TrackPage(props: PageProps<"/track/[orderNumber]">
     <main className="flex-1 flex justify-center bg-background px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Image
-            src="/flower-icon.png"
-            alt=""
-            width={512}
-            height={512}
-            className="mx-auto mb-3 h-12 w-12 rounded-full bg-brand-soft object-cover"
-          />
+          <TrackLogo />
           <h1 className="text-lg font-semibold text-foreground">GiftyGram Flowers</h1>
           <p className="font-mono text-sm text-muted mt-1">{order.orderNumber}</p>
         </div>

@@ -14,7 +14,14 @@ export function TrackSearchForm() {
         e.preventDefault();
         const orderNumber = value.trim();
         if (!orderNumber) return;
-        router.push(`/track/${encodeURIComponent(orderNumber)}`);
+        // This page is also served on-domain for customers via Shopify's App
+        // Proxy at giftygram.ae/apps/track — same route tree, but the
+        // browser's address bar carries the /apps/track prefix that our
+        // server never sees (Shopify strips it before forwarding). Stay
+        // under whatever prefix is actually visible, or this navigates to a
+        // path Shopify never proxies.
+        const base = window.location.pathname.startsWith("/apps/track") ? "/apps/track" : "/track";
+        router.push(`${base}/${encodeURIComponent(orderNumber)}`);
       }}
     >
       <input

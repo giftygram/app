@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { absoluteImageLoader } from "@/lib/absolute-image-loader";
 
 export function ZoomablePhoto({
   src,
@@ -31,7 +32,7 @@ export function ZoomablePhoto({
         aria-label="Open photo, pinch to zoom"
         className="relative aspect-square w-full rounded-2xl overflow-hidden border border-line block"
       >
-        <Image src={src} alt={alt} fill className="object-cover" />
+        <Image loader={absoluteImageLoader} src={src} alt={alt} fill className="object-cover" />
         <span className="absolute bottom-2 right-2 rounded-full bg-black/50 text-white text-[11px] font-medium px-2.5 py-1">
           Tap to zoom
         </span>
