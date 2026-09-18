@@ -105,7 +105,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
     status === "FAILED_DELIVERY";
 
   const deliverLink = `${SITE_URL}/deliver/${order.id}`;
-  const trackingLink = `${SITE_URL}/track/${encodeURIComponent(order.orderNumber)}`;
+  const trackingLink = `${SITE_URL}/track/${encodeURIComponent(order.trackingToken)}`;
   // Whoever should get customer-facing links — the sender for gifted orders,
   // or the recipient themselves when they placed the order for their own use.
   const trackingContactPhone = order.senderPhone || order.recipientPhone;
@@ -539,7 +539,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         <h3 className="text-sm font-semibold text-foreground mb-1">Customer tracking link</h3>
         <p className="text-xs text-muted mb-2">Share this after the order is confirmed — no login needed.</p>
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <CopyLink path={`/track/${encodeURIComponent(order.orderNumber)}`} />
+          <CopyLink path={`/track/${encodeURIComponent(order.trackingToken)}`} />
           {trackingContactPhone && (
             <a
               href={whatsappLink(trackingContactPhone, trackingLinkMessage(trackingLink))}
