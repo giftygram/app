@@ -39,10 +39,22 @@ export async function POST(request: Request) {
   const existing = await db.order.findUnique({ where: { shopifyOrderId: mapped.shopifyOrderId } });
 
   if (existing) {
-    // Shopify retries deliveries — update the descriptive fields in case the
-    // order changed, but never touch status/assignment; Operations may
-    // already be partway through fulfilling it.
-    await db.order.update({ where: { id: existing.id }, data: updatable });
+    // Shopify retries deliveries for days after an order is placed —
+    // completely normal, and unrelated to whether anything actually
+    // changed — so re-parsing the payload here re-applies the *original*
+    // Shopify note attributes every time. Once Operations has hand-corrected
+    // any of these fields (a typo'd address, a customer-requested date
+    // change), re-applying stale Shopify data would silently discard that
+    // correction, so editedByOps orders skip this sync — except the
+    // reference image, which never overwrites a real photo with nothing
+    // (see above), so re-running that fetch can only help.
+    if (existing.editedByOps) {
+      if (referenceImageUrl) {
+        await db.order.update({ where: { id: existing.id }, data: { referenceImageUrl } });
+      }
+    } else {
+      await db.order.update({ where: { id: existing.id }, data: updatable });
+    }
     return NextResponse.json({ ok: true, orderId: existing.id, deduped: true });
   }
 

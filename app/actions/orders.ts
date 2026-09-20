@@ -120,6 +120,10 @@ export async function updateOrderAction(orderId: string, formData: FormData) {
       notes,
       deadlineAt,
       deliveryTimeSlot,
+      // Marks this order as staff-corrected — see the field's schema
+      // comment. Without it, a routine Shopify webhook redelivery days
+      // later silently overwrites whatever was just fixed here.
+      editedByOps: true,
     },
   });
 
@@ -147,7 +151,7 @@ export async function rescheduleOrderAction(orderId: string, formData: FormData)
   if (!deadlineAt) throw new Error("Choose a new delivery date and time.");
   const deliveryTimeSlot = deliveryTimeSlotFor(deadlineAt);
 
-  await db.order.update({ where: { id: orderId }, data: { deadlineAt, deliveryTimeSlot } });
+  await db.order.update({ where: { id: orderId }, data: { deadlineAt, deliveryTimeSlot, editedByOps: true } });
   await db.statusEvent.create({
     data: {
       orderId,

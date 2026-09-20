@@ -35,6 +35,14 @@ model Order {
   // path that creates an Order sets it (see lib/trackingToken.ts).
   trackingToken   String    @unique
   source          String // "SHOPIFY" | "WHATSAPP"
+  // Set the moment Operations hand-corrects any order detail (address, name,
+  // delivery date, etc.) via updateOrderAction/rescheduleOrderAction. Once
+  // true, the Shopify webhook handler stops re-syncing descriptive fields
+  // for this order — otherwise a routine webhook redelivery (Shopify
+  // retries for days after an order is placed, unrelated to any real
+  // change) silently overwrites the correction with the original,
+  // now-outdated Shopify data.
+  editedByOps     Boolean   @default(false)
   shopifyOrderId  String?   @unique
   status          String    @default("NEW")
   // "NEW" | "ASSIGNED_FLORIST" | "READY" | "ASSIGNED_DRIVER" | "OUT_FOR_DELIVERY" | "DELIVERED" | "FAILED_DELIVERY" | "CANCELLED"
