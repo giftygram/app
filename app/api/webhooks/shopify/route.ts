@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@/app/generated/prisma/client";
 import { db } from "@/lib/db";
 import { fetchProductImageUrl, mapShopifyOrder, verifyShopifyWebhook, type ShopifyOrderPayload } from "@/lib/shopify";
 import { createUniqueTrackingToken } from "@/lib/trackingToken";
@@ -58,9 +59,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, orderId: existing.id, deduped: true });
   }
 
-  const created = await db.order.create({
-    data: { ...orderData, trackingToken: await createUniqueTrackingToken() },
-  });
+  let created;
+  try {
+    created = await db.order.create({
+      data: { ...orderData, trackingToken: await createUniqueTrackingToken() },
+    });
+  } catch (err) {
+    // Unique-constraint clash. Either two deliveries for this order raced each
+    // other here (harmless — the winner's row is the one we want), or the
+    // order number collides with an existing row. Answering 2xx matters more
+    // than the row: Shopify disables a webhook after enough consecutive
+    // failures, and a permanent 500 here would silently cut off all order
+    // intake with nothing to show for it.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      console.error("Shopify webhook: order create conflicted", {
+        shopifyOrderId: mapped.shopifyOrderId,
+        orderNumber: mapped.orderNumber,
+        target: err.meta?.target,
+      });
+      return NextResponse.json({ ok: true, conflicted: true });
+    }
+    throw err;
+  }
+
   await db.statusEvent.create({
     data: { orderId: created.id, fromStatus: null, toStatus: status, employeeId: null },
   });

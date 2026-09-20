@@ -37,6 +37,26 @@ export function deliveryTimeSlotFor(d: Date): string | null {
   return DELIVERY_TIME_WINDOWS.find((w) => minutes >= w.startMin && minutes < w.endMin)?.label ?? null;
 }
 
+/**
+ * The slot to store alongside a deadline, for flows where Operations picks a
+ * deadline by hand. deadlineAt always holds a window's *end*, but the windows
+ * are half-open, so feeding an end straight to deliveryTimeSlotFor lands it in
+ * the *next* window — rescheduling a 9:00 AM - 12:00 PM order used to relabel
+ * it 12:00 PM - 3:00 PM and push the whole delivery three hours late. An exact
+ * window end therefore belongs to the window it closes; anything else is a
+ * time inside its window, as before.
+ */
+export function deliveryTimeSlotForDeadline(d: Date): string | null {
+  const dubai = toDubaiWallClock(d);
+  const minutes = dubai.getUTCHours() * 60 + dubai.getUTCMinutes();
+  const closes = DELIVERY_TIME_WINDOWS.find((w) => w.endMin === minutes);
+  if (closes) return closes.label;
+  // The 9:00 PM - 12:00 AM window stores 23:59:59.999 rather than a clean
+  // midnight (see parseDeadline), so it never matches endMin exactly.
+  if (minutes === 24 * 60 - 1) return DELIVERY_TIME_WINDOWS[DELIVERY_TIME_WINDOWS.length - 1].label;
+  return deliveryTimeSlotFor(d);
+}
+
 /** Dubai-local YYYY-MM-DD, matching what a <input type="date"> produces. */
 export function toDateParam(d: Date) {
   const dubai = toDubaiWallClock(d);

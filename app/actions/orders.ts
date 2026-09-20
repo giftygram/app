@@ -8,7 +8,12 @@ import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
 import { createUniqueTrackingToken } from "@/lib/trackingToken";
 import { savePhoto } from "@/lib/photos";
 import { ACTIVE_STATUSES, ORDER_STATUSES, type OrderStatus } from "@/lib/status";
-import { deliveryTimeSlotFor, formatDubaiDateTime, fromDatetimeLocalValue } from "@/lib/date";
+import {
+  deliveryTimeSlotFor,
+  deliveryTimeSlotForDeadline,
+  formatDubaiDateTime,
+  fromDatetimeLocalValue,
+} from "@/lib/date";
 import { logStatus } from "@/lib/statusLog";
 import { assertCanAttachCourier, shouldPromoteOnAttach } from "@/lib/dispatchReady";
 
@@ -149,7 +154,7 @@ export async function rescheduleOrderAction(orderId: string, formData: FormData)
   const deadlineRaw = String(formData.get("deadlineAt") ?? "");
   const deadlineAt = deadlineRaw ? fromDatetimeLocalValue(deadlineRaw) : null;
   if (!deadlineAt) throw new Error("Choose a new delivery date and time.");
-  const deliveryTimeSlot = deliveryTimeSlotFor(deadlineAt);
+  const deliveryTimeSlot = deliveryTimeSlotForDeadline(deadlineAt);
 
   await db.order.update({ where: { id: orderId }, data: { deadlineAt, deliveryTimeSlot, editedByOps: true } });
   await db.statusEvent.create({
@@ -328,11 +333,22 @@ export async function cancelOrderAction(orderId: string) {
   const session = await requireRole("OPERATIONS");
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
 
+  // The UI hides Cancel once an order is finished, but a page left open while
+  // the driver delivers would otherwise still post it — flipping a delivered
+  // order to CANCELLED and telling the customer, on their tracking link, that
+  // the flowers they already received were cancelled.
+  if (order.status === "DELIVERED" || order.status === "CANCELLED") {
+    throw new Error(`This order is already ${order.status.toLowerCase()}.`);
+  }
+
   await db.order.update({ where: { id: orderId }, data: { status: "CANCELLED" } });
   await logStatus(orderId, order.status, "CANCELLED", session.employeeId);
 
   revalidatePath("/ops");
+  revalidatePath("/florist");
+  revalidatePath("/driver");
   revalidatePath(`/ops/orders/${orderId}`);
+  revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
 }
 
 export async function markReadyAction(orderId: string, formData: FormData) {
@@ -378,9 +394,19 @@ export async function markReadyAction(orderId: string, formData: FormData) {
       },
     }),
   ]);
-  await logStatus(orderId, order.status, nextStatus, session.employeeId);
+  // The order really did become ready, so log that first even when a waiting
+  // courier sends it straight on to ASSIGNED_DRIVER. Skipping it would drop
+  // the "your bouquet is ready" email (logStatus only fires Klaviyo on READY
+  // and DELIVERED) and leave a hole in the customer's tracking timeline.
+  if (nextStatus !== "READY") {
+    await logStatus(orderId, order.status, "READY", session.employeeId);
+    await logStatus(orderId, "READY", nextStatus, session.employeeId);
+  } else {
+    await logStatus(orderId, order.status, nextStatus, session.employeeId);
+  }
 
   revalidatePath("/florist");
+  revalidatePath("/driver");
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
   revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
@@ -541,6 +567,7 @@ export async function markFailedAction(orderId: string, formData: FormData) {
 /** Public — see publicMarkOutForDeliveryAction/publicMarkDeliveredAction. */
 export async function publicMarkFailedAction(orderId: string, formData: FormData) {
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (!handedToOutsideCourier(order)) return;
   if (order.status !== "OUT_FOR_DELIVERY") return;
   await doMarkFailed(order, reasonFromFormData(formData), null);
 }
@@ -644,6 +671,17 @@ export async function retakeDeliveryPhotoAction(orderId: string, formData: FormD
 }
 
 /**
+ * The /deliver/[id] link is only ever sent to an outside courier Operations
+ * attached by hand. A team driver signs in with a PIN and a Slider rider
+ * works in Slider's own app, so for those orders the link's actions must do
+ * nothing — otherwise anyone who learns an order id could drive someone
+ * else's live delivery to "delivered" with a photo of their choosing.
+ */
+function handedToOutsideCourier(order: { externalDriverName: string | null; driverId: string | null; sliderOrderNumber: string | null }) {
+  return Boolean(order.externalDriverName) && !order.driverId && !order.sliderOrderNumber;
+}
+
+/**
  * Public — invoked from the /deliver/[id] link Operations sends an outside
  * courier. The order id is the capability token, same trust model as the
  * customer tracking link. Fails silently (rather than throwing) so a stray
@@ -651,6 +689,7 @@ export async function retakeDeliveryPhotoAction(orderId: string, formData: FormD
  */
 export async function publicMarkOutForDeliveryAction(orderId: string) {
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (!handedToOutsideCourier(order)) return;
   if (order.status !== "ASSIGNED_DRIVER") return;
   await doMarkOutForDelivery(order, null);
 }
@@ -658,6 +697,7 @@ export async function publicMarkOutForDeliveryAction(orderId: string) {
 /** Public — see publicMarkOutForDeliveryAction. */
 export async function publicMarkDeliveredAction(orderId: string, formData: FormData) {
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (!handedToOutsideCourier(order)) return;
   if (order.status !== "OUT_FOR_DELIVERY") return;
   const photo = formData.get("photo");
   if (!(photo instanceof File) || photo.size === 0) return;

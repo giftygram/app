@@ -6,6 +6,13 @@ export type SessionPayload = {
   role: "OPERATIONS" | "FLORIST" | "DRIVER";
 };
 
+// A missing SESSION_SECRET in production would silently sign every session
+// with a value that is public in this repo — anyone could then mint
+// themselves an OPERATIONS cookie. Fail the deploy instead.
+if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET) {
+  throw new Error("SESSION_SECRET must be set in production");
+}
+
 const SECRET = process.env.SESSION_SECRET ?? "dev-only-insecure-secret";
 
 function sign(value: string) {

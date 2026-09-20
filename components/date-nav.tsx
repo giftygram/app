@@ -162,7 +162,7 @@ export function DateNav({
                             : "text-muted/40 hover:bg-background"
                     )}
                   >
-                    {date.getDate()}
+                    {Number(toDateParam(date).split("-")[2])}
                   </button>
                 );
               })}
