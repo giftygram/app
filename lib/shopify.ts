@@ -34,6 +34,12 @@ type ShopifyLineItem = {
 export type ShopifyOrderPayload = {
   id: number | string;
   name: string;
+  // Shopify's own random order token — the one behind order_status_url.
+  // Stored so the order-confirmation email can link a customer straight to
+  // their tracking page: Shopify renders that email the moment checkout
+  // completes, before our webhook has created the order here, so it can't
+  // reference our trackingToken — but it always has this one.
+  token?: string | null;
   note?: string | null;
   note_attributes?: { name?: string | null; value?: string | null }[] | null;
   email?: string | null;
@@ -130,6 +136,7 @@ export function mapShopifyOrder(order: ShopifyOrderPayload) {
     orderNumber: order.name,
     source: "SHOPIFY" as const,
     shopifyOrderId: String(order.id),
+    shopifyOrderToken: order.token?.trim() || null,
     status: "NEW" as const,
     email: order.email?.trim() || null,
     senderName: attr("Sender Name"),

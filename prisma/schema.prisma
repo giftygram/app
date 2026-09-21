@@ -34,6 +34,12 @@ model Order {
   // reusing it here would blur two different trust boundaries). Every code
   // path that creates an Order sets it (see lib/trackingToken.ts).
   trackingToken   String    @unique
+  // Shopify's own order token (the one in order_status_url). The tracking
+  // page accepts it as well as trackingToken, because Shopify renders the
+  // order-confirmation email at checkout — before this row exists — so that
+  // email can only link with a token Shopify itself already holds. Just as
+  // unguessable, and it's what already guards Shopify's own status page.
+  shopifyOrderToken String? @unique
   source          String // "SHOPIFY" | "WHATSAPP"
   // Set the moment Operations hand-corrects any order detail (address, name,
   // delivery date, etc.) via updateOrderAction/rescheduleOrderAction. Once

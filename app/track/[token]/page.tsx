@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { CUSTOMER_STEP_MESSAGE, CUSTOMER_TIMELINE, type OrderStatus } from "@/lib/status";
 import { formatEventTime } from "@/lib/date";
@@ -6,20 +5,44 @@ import { normalizePhone } from "@/lib/whatsapp";
 import { cn } from "@/lib/cn";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
 import { TrackLogo } from "@/components/track-logo";
+import { TrackSearchForm } from "@/components/track-search-form";
 
 export default async function TrackPage(props: PageProps<"/track/[token]">) {
   const { token: rawToken } = await props.params;
   const token = decodeURIComponent(rawToken);
 
-  const order = await db.order.findUnique({
-    where: { trackingToken: token },
+  // Either our own tracking code or Shopify's order token — the confirmation
+  // email can only carry the latter, since Shopify sends it before this order
+  // reaches us. Both are random and unguessable.
+  const order = await db.order.findFirst({
+    where: { OR: [{ trackingToken: token }, { shopifyOrderToken: token }] },
     include: {
       driver: true,
       photos: { orderBy: { createdAt: "desc" } },
       statusEvents: { orderBy: { createdAt: "asc" } },
     },
   });
-  if (!order) notFound();
+  // A customer opening the confirmation email within a second or two of
+  // checking out can beat our own webhook here, and a bare "page not found"
+  // reads as "your order doesn't exist". Say what's actually happening and
+  // leave them somewhere useful.
+  if (!order) {
+    return (
+      <main className="flex-1 flex justify-center bg-background px-4 py-10">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <TrackLogo />
+            <h1 className="text-lg font-semibold text-foreground">GiftyGram Flowers</h1>
+            <p className="text-sm text-muted mt-1">
+              We couldn&apos;t find that order just yet. If you&apos;ve only just ordered, give it a
+              minute and refresh — otherwise check the tracking code from your email below.
+            </p>
+          </div>
+          <TrackSearchForm />
+        </div>
+      </main>
+    );
+  }
 
   const status = order.status as OrderStatus;
   const driverName = order.driver?.name ?? order.externalDriverName;
