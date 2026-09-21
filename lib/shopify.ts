@@ -40,6 +40,7 @@ export type ShopifyOrderPayload = {
   // completes, before our webhook has created the order here, so it can't
   // reference our trackingToken — but it always has this one.
   token?: string | null;
+  order_status_url?: string | null;
   note?: string | null;
   note_attributes?: { name?: string | null; value?: string | null }[] | null;
   email?: string | null;
@@ -105,6 +106,22 @@ export function parseDeadline(dateStr: string | null, timeWindow: string | null)
   return fromDubaiComponents(y, m, d, hour, minute);
 }
 
+/**
+ * Shopify's own order token, which the confirmation email links with. Sent as
+ * `token` on the order payload, but that field has come and gone across API
+ * versions — order_status_url embeds the same token
+ * (…/orders/<token>/authenticate?key=…), so fall back to reading it from
+ * there rather than silently losing the link for every new order.
+ */
+function shopifyOrderTokenFrom(order: ShopifyOrderPayload): string | null {
+  const direct = order.token?.trim();
+  if (direct) return direct;
+
+  const url = order.order_status_url?.trim();
+  if (!url) return null;
+  return url.split("/orders/")[1]?.split("/")[0]?.split("?")[0]?.trim() || null;
+}
+
 /** Maps a Shopify order payload to our Order.create() input. */
 export function mapShopifyOrder(order: ShopifyOrderPayload) {
   const attr = noteAttributeMap(order.note_attributes);
@@ -136,7 +153,7 @@ export function mapShopifyOrder(order: ShopifyOrderPayload) {
     orderNumber: order.name,
     source: "SHOPIFY" as const,
     shopifyOrderId: String(order.id),
-    shopifyOrderToken: order.token?.trim() || null,
+    shopifyOrderToken: shopifyOrderTokenFrom(order),
     status: "NEW" as const,
     email: order.email?.trim() || null,
     senderName: attr("Sender Name"),
