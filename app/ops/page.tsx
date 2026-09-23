@@ -6,6 +6,7 @@ import { DayStats } from "@/components/day-stats";
 import { TimeSlotFilter } from "@/components/time-slot-filter";
 import { ACTIVE_STATUSES, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { isFarEmirate } from "@/lib/emirates";
+import { phoneSearchKey } from "@/lib/whatsapp";
 import { addDays, formatDeliveryWindow, fromDateParam, startOfDay, toDateParam } from "@/lib/date";
 import { cn } from "@/lib/cn";
 
@@ -28,13 +29,31 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
   const q = typeof searchParams.q === "string" ? searchParams.q.trim() : "";
 
   if (q) {
+    // Phone numbers are stored however whoever typed them wrote them —
+    // "0559154842", "+971559154842", "971554480541" are all the same line —
+    // so a plain text match only finds orders that happen to share the
+    // searcher's format. Reduce both sides to the national digits and
+    // compare from the right, which also lets a partial number match.
+    const phoneKey = phoneSearchKey(q);
+    const phoneMatchIds =
+      phoneKey.length >= 6
+        ? (
+            await db.$queryRaw<{ id: string }[]>`
+              SELECT id FROM "Order"
+              WHERE right(regexp_replace(COALESCE("recipientPhone", ''), '[^0-9]', '', 'g'), ${phoneKey.length}) = ${phoneKey}
+                 OR right(regexp_replace(COALESCE("senderPhone", ''), '[^0-9]', '', 'g'), ${phoneKey.length}) = ${phoneKey}
+              LIMIT 100
+            `
+          ).map((row) => row.id)
+        : [];
+
     const results = await db.order.findMany({
       where: {
         OR: [
           { orderNumber: { contains: q } },
-          { recipientName: { contains: q } },
-          { recipientPhone: { contains: q } },
-          { senderPhone: { contains: q } },
+          { recipientName: { contains: q, mode: "insensitive" } },
+          { senderName: { contains: q, mode: "insensitive" } },
+          ...(phoneMatchIds.length > 0 ? [{ id: { in: phoneMatchIds } }] : []),
         ],
       },
       include: { florist: true, driver: true },

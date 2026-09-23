@@ -12,6 +12,20 @@ export function normalizePhone(phone: string): string {
   return digits;
 }
 
+/**
+ * The comparable part of a phone number: digits only, with the country code
+ * and any trunk zero stripped. The same UAE mobile is stored as
+ * "0559154842", "+971559154842" and "971554480541" depending on who typed
+ * it, so searching needs both sides reduced to the bit that actually
+ * identifies the line before they can be compared.
+ */
+export function phoneSearchKey(phone: string): string {
+  let digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("971")) digits = digits.slice(3);
+  return digits.replace(/^0+/, "");
+}
+
 /** wa.me needs the full international number as digits only, no "+". */
 export function whatsappLink(phone: string, message: string) {
   return `https://wa.me/${normalizePhone(phone)}?text=${encodeURIComponent(message)}`;
