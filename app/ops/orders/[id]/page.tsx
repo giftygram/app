@@ -21,6 +21,7 @@ import {
   opsMarkDeliveredAction,
   opsMarkFailedAction,
   opsMarkOutForDeliveryAction,
+  opsAddBouquetPhotoAction,
   opsReplaceBouquetPhotoAction,
   opsSetStatusAction,
   rescheduleOrderAction,
@@ -37,7 +38,7 @@ import {
 import { sliderAccountConfigured, sliderStatusLabel } from "@/lib/slider";
 import { SliderOrderForm } from "@/components/slider-order-form";
 import { ContactActions } from "@/components/contact-actions";
-import { CUSTOMER_STATUS_LABEL, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
+import { STATUS_META, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { canAttachCourier } from "@/lib/dispatchReady";
 import { formatDeliveryWindow, formatDubaiDateTime, formatDubaiTime } from "@/lib/date";
 import {
@@ -78,7 +79,12 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   // move the order; it reaches the driver's queue once the bouquet is ready
   // and approved (lib/dispatchReady.ts).
   const canAssignDriver = canAttachCourier(status);
+  // "Ready" in the sense the rest of this page cares about: the bouquet is
+  // finished *and* photographed, so it can actually be handed over. An order
+  // in AWAITING_PHOTO is made but must not leave the shop yet — once it does,
+  // the photo can't be taken at all.
   const bouquetReady = status === "READY" || status === "ASSIGNED_DRIVER";
+  const needsBouquetPhoto = status === "AWAITING_PHOTO";
 
   // Newest first, so this is always the latest revision after any redo.
   const bouquetPhoto = order.photos.find((p) => p.type === "BOUQUET");
@@ -172,6 +178,26 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
           </form>
         )}
       </div>
+
+      {needsBouquetPhoto && (
+        <section className="rounded-2xl border border-pink-300 bg-pink-50 p-4 flex flex-col gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-pink-900">Ready — waiting for your photo</h3>
+            <p className="text-xs text-pink-800 mt-1">
+              {order.florist?.name ?? "The florist"} has finished this bouquet. Photograph it and
+              upload it here: that marks the order ready, emails the customer and puts the photo on
+              their tracking page. Nothing has been sent to them yet.
+            </p>
+          </div>
+          <PhotoActionForm
+            action={opsAddBouquetPhotoAction.bind(null, order.id)}
+            photoLabel="Photo of the finished bouquet"
+            photoPlaceholder="Add the bouquet photo"
+            useCamera={false}
+            submitLabel="Save photo & mark ready"
+          />
+        </section>
+      )}
 
       {canCancel && (
         <RescheduleForm
@@ -313,9 +339,9 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
             <div className="flex flex-col gap-3">
               {!bouquetReady && (
                 <p className="text-xs text-muted">
-                  Still with the florist. You can line a driver up now — the order stays where it
-                  is and moves to &ldquo;waiting for pickup&rdquo; the moment the bouquet is
-                  marked ready.
+                  {needsBouquetPhoto
+                    ? "Waiting on the bouquet photo. You can line a driver up now — the order stays where it is and moves to “waiting for pickup” as soon as the photo is uploaded above."
+                    : "Still with the florist. You can line a driver up now — the order stays where it is and moves to “waiting for pickup” the moment the bouquet is marked ready."}
                 </p>
               )}
               <AssignSelect
@@ -561,7 +587,14 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
               <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand shrink-0" />
               <div>
                 <p className="text-foreground">
-                  {CUSTOMER_STATUS_LABEL[event.toStatus as OrderStatus] ?? event.toStatus}
+                  {/* Operations' own wording, not the customer's — the
+                      customer labels collapse internal stages onto the
+                      public one they sit inside ("with florist" and "needs
+                      photo" would both read "Being prepared"), which is
+                      exactly the distinction this timeline exists to show.
+                      Falls through for the free-text events (photo
+                      retaken/replaced), which aren't statuses at all. */}
+                  {STATUS_META[event.toStatus as OrderStatus]?.label ?? event.toStatus}
                   {event.employee && <span className="text-muted"> — {event.employee.name}</span>}
                 </p>
                 <p className="text-xs text-muted">

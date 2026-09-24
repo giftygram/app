@@ -16,7 +16,12 @@ export default async function FloristQueuePage() {
     db.order.findMany({
       where: {
         floristId: session.employeeId,
-        status: { in: ["READY", "ASSIGNED_DRIVER", "OUT_FOR_DELIVERY", "DELIVERED"] },
+        // AWAITING_PHOTO included: the florist has finished those, they're
+        // just waiting on Operations' photo. Leaving it out would make an
+        // order the florist just marked ready vanish off their screen.
+        status: {
+          in: ["AWAITING_PHOTO", "READY", "ASSIGNED_DRIVER", "OUT_FOR_DELIVERY", "DELIVERED"],
+        },
         updatedAt: { gte: startOfDay(new Date()) },
       },
       orderBy: { updatedAt: "desc" },

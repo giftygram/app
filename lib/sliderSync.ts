@@ -31,6 +31,7 @@ import {
 const PROGRESS: Record<OrderStatus, number> = {
   NEW: 0,
   ASSIGNED_FLORIST: 0,
+  AWAITING_PHOTO: 0,
   READY: 0,
   ASSIGNED_DRIVER: 1,
   OUT_FOR_DELIVERY: 2,

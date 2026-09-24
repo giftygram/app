@@ -4,8 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { markReadyAction, retakeBouquetPhotoAction } from "@/app/actions/orders";
-import { PhotoActionForm } from "@/components/photo-action-form";
 import { RetakePhotoForm } from "@/components/retake-photo-form";
+import { SubmitButton } from "@/components/submit-button";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
 import { StatusChip } from "@/components/status-chip";
 import { ACTIVE_STATUSES, type OrderStatus } from "@/lib/status";
@@ -23,8 +23,13 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
   if (order.floristId !== session.employeeId) redirect("/florist");
 
   const bouquetPhoto = order.photos[0];
+  // Only for orders the florist photographed themselves, under the old flow.
+  // The first photo is Operations' job now, so there's nothing to retake
+  // while the order is still waiting for one.
   const canRetake =
-    order.status !== "ASSIGNED_FLORIST" && ACTIVE_STATUSES.includes(order.status as OrderStatus);
+    order.status !== "ASSIGNED_FLORIST" &&
+    order.status !== "AWAITING_PHOTO" &&
+    ACTIVE_STATUSES.includes(order.status as OrderStatus);
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,12 +80,17 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
       </div>
 
       {order.status === "ASSIGNED_FLORIST" ? (
-        <PhotoActionForm
-          action={markReadyAction.bind(null, order.id)}
-          photoLabel="Photo of the finished bouquet"
-          useCamera={false}
-          submitLabel="Mark ready"
-        />
+        <form action={markReadyAction.bind(null, order.id)} className="flex flex-col gap-2">
+          <SubmitButton
+            pendingText="Marking ready…"
+            className="rounded-xl bg-brand text-brand-ink font-semibold py-3.5 hover:opacity-90 transition disabled:opacity-60 disabled:cursor-wait"
+          >
+            Mark ready
+          </SubmitButton>
+          <p className="text-xs text-muted text-center">
+            No photo needed — the team photographs it before it goes out.
+          </p>
+        </form>
       ) : (
         <div className="flex flex-col gap-3">
           {bouquetPhoto && <ZoomablePhoto src={bouquetPhoto.url} alt="Bouquet you submitted" />}

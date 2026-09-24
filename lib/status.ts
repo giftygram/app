@@ -1,6 +1,13 @@
 export const ORDER_STATUSES = [
   "NEW",
   "ASSIGNED_FLORIST",
+  // Internal only. The florist has finished the bouquet and pressed "mark
+  // ready"; Operations still has to photograph it. Florists' phone photos
+  // weren't good enough to send to a customer, so the photo moved to
+  // Operations — but the florist shouldn't have to wait around for them, so
+  // the order parks here in between. Nothing customer-facing happens until
+  // the photo lands and the order reaches READY: see customerFacingStatus.
+  "AWAITING_PHOTO",
   "READY",
   "ASSIGNED_DRIVER",
   "OUT_FOR_DELIVERY",
@@ -16,6 +23,7 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export const ACTIVE_STATUSES: OrderStatus[] = [
   "NEW",
   "ASSIGNED_FLORIST",
+  "AWAITING_PHOTO",
   "READY",
   "ASSIGNED_DRIVER",
   "OUT_FOR_DELIVERY",
@@ -36,6 +44,11 @@ export const STATUS_META: Record<
     label: "With florist",
     chip: "bg-indigo-50 text-indigo-700 border-indigo-200",
     dot: "bg-indigo-500",
+  },
+  AWAITING_PHOTO: {
+    label: "Needs photo",
+    chip: "bg-pink-50 text-pink-700 border-pink-200",
+    dot: "bg-pink-500",
   },
   READY: {
     label: "Ready",
@@ -74,6 +87,7 @@ export const STATUS_META: Record<
 export const CUSTOMER_STATUS_LABEL: Record<OrderStatus, string> = {
   NEW: "Order received",
   ASSIGNED_FLORIST: "Being prepared",
+  AWAITING_PHOTO: "Being prepared",
   READY: "Ready",
   ASSIGNED_DRIVER: "Waiting for pickup",
   OUT_FOR_DELIVERY: "Out for delivery",
@@ -82,6 +96,9 @@ export const CUSTOMER_STATUS_LABEL: Record<OrderStatus, string> = {
   CANCELLED: "Cancelled",
 };
 
+// Deliberately excludes AWAITING_PHOTO — it's a shop-internal hand-off, not
+// a stage a customer should ever be shown. Route every status through
+// customerFacingStatus() before using it against this list.
 export const CUSTOMER_TIMELINE: OrderStatus[] = [
   "NEW",
   "ASSIGNED_FLORIST",
@@ -91,11 +108,29 @@ export const CUSTOMER_TIMELINE: OrderStatus[] = [
   "DELIVERED",
 ];
 
+/**
+ * The stage a customer should be shown for an order in a given status.
+ *
+ * Internal-only statuses map onto the customer-visible stage they sit
+ * inside, so the public tracking page looks exactly as it did before that
+ * status existed. This matters more than it sounds: the tracking page finds
+ * the current step with CUSTOMER_TIMELINE.indexOf(status), and a status
+ * missing from that list gives -1 — every step drawn as not-yet-reached, no
+ * matter how far along the order really is.
+ */
+export function customerFacingStatus(status: OrderStatus): OrderStatus {
+  // "Mark ready" only ends the florist's part of the job; as far as the
+  // customer is concerned the bouquet is still being put together until the
+  // photo exists and the order moves to READY.
+  return status === "AWAITING_PHOTO" ? "ASSIGNED_FLORIST" : status;
+}
+
 // Warmer, sentence-style copy for the public tracking page — used for both
 // the big current-status headline and each row of the step-by-step timeline.
 export const CUSTOMER_STEP_MESSAGE: Record<OrderStatus, string> = {
   NEW: "We've received your order 🌸",
   ASSIGNED_FLORIST: "Your florist is putting it together",
+  AWAITING_PHOTO: "Your florist is putting it together",
   READY: "Your bouquet is ready!",
   ASSIGNED_DRIVER: "Packed and waiting for pickup",
   OUT_FOR_DELIVERY: "On its way to you 🚗",

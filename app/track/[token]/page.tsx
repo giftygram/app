@@ -1,5 +1,10 @@
 import { db } from "@/lib/db";
-import { CUSTOMER_STEP_MESSAGE, CUSTOMER_TIMELINE, type OrderStatus } from "@/lib/status";
+import {
+  CUSTOMER_STEP_MESSAGE,
+  CUSTOMER_TIMELINE,
+  customerFacingStatus,
+  type OrderStatus,
+} from "@/lib/status";
 import { formatEventTime } from "@/lib/date";
 import { normalizePhone } from "@/lib/whatsapp";
 import { cn } from "@/lib/cn";
@@ -44,7 +49,11 @@ export default async function TrackPage(props: PageProps<"/track/[token]">) {
     );
   }
 
-  const status = order.status as OrderStatus;
+  // Everything below works off the customer-facing stage, never the raw
+  // status — shop-internal stages (e.g. a bouquet waiting to be
+  // photographed) collapse onto the public stage they belong to, so this
+  // page reads exactly the same as it did before they existed.
+  const status = customerFacingStatus(order.status as OrderStatus);
   const driverName = order.driver?.name ?? order.externalDriverName;
   const driverPhone = order.driver?.phone ?? order.externalDriverPhone;
   // Customers only ever see the florist's bouquet photo — the delivery

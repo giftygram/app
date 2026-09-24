@@ -17,7 +17,13 @@ import type { OrderStatus } from "@/lib/status";
  */
 
 /** Statuses where attaching a courier makes sense at all. */
-const ATTACHABLE: OrderStatus[] = ["NEW", "ASSIGNED_FLORIST", "READY", "ASSIGNED_DRIVER"];
+const ATTACHABLE: OrderStatus[] = [
+  "NEW",
+  "ASSIGNED_FLORIST",
+  "AWAITING_PHOTO",
+  "READY",
+  "ASSIGNED_DRIVER",
+];
 
 export function canAttachCourier(status: string) {
   return ATTACHABLE.includes(status as OrderStatus);
@@ -40,6 +46,11 @@ type PromotableOrder = {
  * Only from READY: before that the bouquet doesn't exist yet, and the
  * florist's queue is `status = ASSIGNED_FLORIST`, so moving the order would
  * take it off their screen.
+ *
+ * AWAITING_PHOTO is excluded on purpose. The bouquet is made, but promoting
+ * it would hand the order to a driver before Operations has photographed it
+ * — and once it leaves the shop that photo can't be taken at all. It also
+ * skips READY, and with it the "your bouquet is ready" email.
  */
 export function shouldPromoteOnAttach(order: PromotableOrder) {
   return order.status === "READY";

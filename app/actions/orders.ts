@@ -351,7 +351,19 @@ export async function cancelOrderAction(orderId: string) {
   revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
 }
 
-export async function markReadyAction(orderId: string, formData: FormData) {
+/**
+ * The florist's whole job in one press: the bouquet is made, hand it over.
+ *
+ * Photographing it is Operations' job now — florists' phone photos weren't
+ * good enough to put in front of a customer — so this asks the florist for
+ * nothing but the tap, and parks the order in AWAITING_PHOTO for Operations
+ * to pick up (opsAddBouquetPhotoAction). Deliberately nothing
+ * customer-facing happens here: no photo, no "your bouquet is ready" email,
+ * and no jump to ASSIGNED_DRIVER, because none of those are true until
+ * there's a photo. The customer's tracking page still reads "your florist is
+ * putting it together" throughout (see customerFacingStatus).
+ */
+export async function markReadyAction(orderId: string) {
   const session = await requireRole("FLORIST");
 
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
@@ -359,7 +371,43 @@ export async function markReadyAction(orderId: string, formData: FormData) {
     throw new Error("This order isn't assigned to you.");
   }
   if (order.status !== "ASSIGNED_FLORIST") {
-    throw new Error("This order isn't waiting on a bouquet photo.");
+    throw new Error("This order isn't waiting on you.");
+  }
+
+  // Customer approval was removed: the shop was not in practice able to wait
+  // out a 15-minute window on every order, so a ready bouquet is simply
+  // ready. The approval columns stay in the schema holding the record of
+  // orders that did go through review, and nothing writes PENDING any more.
+  await db.order.update({
+    where: { id: orderId },
+    data: {
+      status: "AWAITING_PHOTO",
+      approvalStatus: "APPROVED",
+      approvalDeadline: null,
+      changeRequestNote: null,
+    },
+  });
+  await logStatus(orderId, order.status, "AWAITING_PHOTO", session.employeeId);
+
+  // No /track revalidation: the customer-visible stage hasn't changed.
+  revalidatePath("/florist");
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+  redirect("/florist");
+}
+
+/**
+ * Operations photographs the finished bouquet, and with that the order
+ * genuinely becomes ready: this is the moment the customer is emailed and
+ * the photo appears on their tracking page. It therefore carries everything
+ * the florist's mark-ready used to do once the photo was in hand.
+ */
+export async function opsAddBouquetPhotoAction(orderId: string, formData: FormData) {
+  const session = await requireRole("OPERATIONS");
+
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  if (order.status !== "AWAITING_PHOTO") {
+    throw new Error("This order isn't waiting for a bouquet photo.");
   }
 
   const photo = formData.get("photo");
@@ -369,14 +417,10 @@ export async function markReadyAction(orderId: string, formData: FormData) {
 
   const url = await savePhoto(orderId, "BOUQUET", photo);
 
-  // Customer approval was removed: the shop was not in practice able to wait
-  // out a 15-minute window on every order, so a ready bouquet is simply
-  // ready. The approval columns stay in the schema holding the record of
-  // orders that did go through review, and nothing writes PENDING any more.
-  //
-  // If Operations already lined up a driver or a Slider rider, "ready" is the
-  // last thing the order was waiting on, so it goes straight to waiting for
-  // pickup and lands in the driver's queue without anyone pressing anything.
+  // If Operations already lined up a driver or a Slider rider, the photo is
+  // the last thing the order was waiting on, so it goes straight to waiting
+  // for pickup and lands in the driver's queue without anyone pressing
+  // anything.
   const courierAttached = Boolean(
     order.driverId || order.externalDriverName || order.sliderOrderNumber
   );
@@ -384,33 +428,25 @@ export async function markReadyAction(orderId: string, formData: FormData) {
 
   await db.$transaction([
     db.photo.create({ data: { orderId, type: "BOUQUET", url } }),
-    db.order.update({
-      where: { id: orderId },
-      data: {
-        status: nextStatus,
-        approvalStatus: "APPROVED",
-        approvalDeadline: null,
-        changeRequestNote: null,
-      },
-    }),
+    db.order.update({ where: { id: orderId }, data: { status: nextStatus } }),
   ]);
   // The order really did become ready, so log that first even when a waiting
   // courier sends it straight on to ASSIGNED_DRIVER. Skipping it would drop
   // the "your bouquet is ready" email (logStatus only fires Klaviyo on READY
   // and DELIVERED) and leave a hole in the customer's tracking timeline.
   if (nextStatus !== "READY") {
-    await logStatus(orderId, order.status, "READY", session.employeeId);
+    await logStatus(orderId, "AWAITING_PHOTO", "READY", session.employeeId);
     await logStatus(orderId, "READY", nextStatus, session.employeeId);
   } else {
-    await logStatus(orderId, order.status, nextStatus, session.employeeId);
+    await logStatus(orderId, "AWAITING_PHOTO", nextStatus, session.employeeId);
   }
 
   revalidatePath("/florist");
+  revalidatePath(`/florist/orders/${orderId}`);
   revalidatePath("/driver");
   revalidatePath("/ops");
   revalidatePath(`/ops/orders/${orderId}`);
   revalidatePath(`/track/${encodeURIComponent(order.trackingToken)}`);
-  redirect("/florist");
 }
 
 /**
@@ -428,7 +464,14 @@ export async function retakeBouquetPhotoAction(orderId: string, formData: FormDa
   if (order.floristId !== session.employeeId) {
     throw new Error("This order isn't assigned to you.");
   }
-  if (order.status === "ASSIGNED_FLORIST" || !ACTIVE_STATUSES.includes(order.status as OrderStatus)) {
+  // AWAITING_PHOTO has no photo yet either — that first one is Operations'
+  // to take, and a florist adding one here would leave a photo attached to
+  // an order still sitting in Operations' queue.
+  if (
+    order.status === "ASSIGNED_FLORIST" ||
+    order.status === "AWAITING_PHOTO" ||
+    !ACTIVE_STATUSES.includes(order.status as OrderStatus)
+  ) {
     throw new Error("This order's bouquet photo can no longer be changed.");
   }
 
@@ -462,7 +505,13 @@ export async function opsReplaceBouquetPhotoAction(orderId: string, formData: Fo
   const session = await requireRole("OPERATIONS");
 
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
-  if (order.status === "NEW" || order.status === "ASSIGNED_FLORIST") {
+  // AWAITING_PHOTO is the first photo, not a replacement — it's what moves
+  // the order to READY, so it goes through opsAddBouquetPhotoAction instead.
+  if (
+    order.status === "NEW" ||
+    order.status === "ASSIGNED_FLORIST" ||
+    order.status === "AWAITING_PHOTO"
+  ) {
     throw new Error("This order doesn't have a bouquet photo yet.");
   }
 

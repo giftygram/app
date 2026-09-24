@@ -14,6 +14,7 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "All" },
   { key: "not_delivered", label: "Not delivered" },
   { key: "NEW", label: "New" },
+  { key: "AWAITING_PHOTO", label: "Needs photo" },
   { key: "READY", label: "Ready" },
   { key: "ASSIGNED_DRIVER", label: "Waiting for pickup" },
   { key: "OUT_FOR_DELIVERY", label: "Out for delivery" },
