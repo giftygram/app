@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { isOverdue, type OrderStatus } from "@/lib/status";
@@ -97,11 +96,8 @@ export default async function DriverReliabilityReportPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/ops" className="text-sm text-muted hover:text-foreground">
-          ← Back to orders
-        </Link>
-        <h2 className="text-lg font-semibold text-foreground mt-2">Driver reliability</h2>
-        <p className="text-sm text-muted mt-1">
+        <h3 className="text-sm font-semibold text-foreground">Driver reliability</h3>
+        <p className="text-xs text-muted mt-0.5">
           How often each driver updates their own delivery status, versus Operations having to do it
           for them.
         </p>
