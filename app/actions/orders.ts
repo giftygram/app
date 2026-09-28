@@ -7,6 +7,7 @@ import { requireOpsAccess, requireRole } from "@/lib/auth";
 import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
 import { createUniqueTrackingToken } from "@/lib/trackingToken";
 import { savePhoto } from "@/lib/photos";
+import { allBouquetsPhotographed } from "@/lib/bouquetPhotos";
 import { ACTIVE_STATUSES, ORDER_STATUSES, type OrderStatus } from "@/lib/status";
 import {
   deliveryTimeSlotFor,
@@ -397,39 +398,68 @@ export async function markReadyAction(orderId: string) {
 }
 
 /**
- * Operations photographs the finished bouquet, and with that the order
- * genuinely becomes ready: this is the moment the customer is emailed and
- * the photo appears on their tracking page. It therefore carries everything
- * the florist's mark-ready used to do once the photo was in hand.
+ * Operations photographs one of the order's products.
+ *
+ * A four-item order is four separate bouquets and gets four separate
+ * photos, so this takes the line it's a photo of. The order only becomes
+ * READY once every line has one: READY is what emails the customer and
+ * reveals the photos, and a four-item order emailed after the first shot
+ * would show the customer three gaps.
+ *
+ * `orderItemId` is null for orders placed before line items existed — those
+ * have a single unnamed slot, and the first photo completes them, exactly as
+ * before.
  */
-export async function opsAddBouquetPhotoAction(orderId: string, formData: FormData) {
+export async function opsAddBouquetPhotoAction(
+  orderId: string,
+  orderItemId: string | null,
+  formData: FormData
+) {
   const session = await requireRole("OPERATIONS");
 
-  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  const order = await db.order.findUniqueOrThrow({
+    where: { id: orderId },
+    include: { items: true, photos: { orderBy: { createdAt: "desc" } } },
+  });
   if (order.status !== "AWAITING_PHOTO") {
     throw new Error("This order isn't waiting for a bouquet photo.");
+  }
+  // Guards against a stale page posting a line that belongs to another order.
+  if (orderItemId && !order.items.some((item) => item.id === orderItemId)) {
+    throw new Error("That product isn't on this order.");
   }
 
   const photo = formData.get("photo");
   if (!(photo instanceof File) || photo.size === 0) {
-    throw new Error("A bouquet photo is required to mark this order ready.");
+    throw new Error("A bouquet photo is required.");
   }
 
   const url = await savePhoto(orderId, "BOUQUET", photo);
+  const saved = await db.photo.create({
+    data: { orderId, orderItemId, type: "BOUQUET", url },
+  });
 
-  // If Operations already lined up a driver or a Slider rider, the photo is
-  // the last thing the order was waiting on, so it goes straight to waiting
-  // for pickup and lands in the driver's queue without anyone pressing
-  // anything.
+  revalidatePath("/ops");
+  revalidatePath(`/ops/orders/${orderId}`);
+
+  // Anything still unphotographed keeps the order where it is — nothing
+  // customer-facing happens until the set is complete.
+  const complete = allBouquetsPhotographed({
+    ...order,
+    photos: [{ ...saved, orderItemId }, ...order.photos],
+  });
+  if (!complete) return;
+
+  // If Operations already lined up a driver or a Slider rider, the photos
+  // were the last thing the order was waiting on, so it goes straight to
+  // waiting for pickup and lands in the driver's queue without anyone
+  // pressing anything.
   const courierAttached = Boolean(
     order.driverId || order.externalDriverName || order.sliderOrderNumber
   );
   const nextStatus = courierAttached ? "ASSIGNED_DRIVER" : "READY";
 
-  await db.$transaction([
-    db.photo.create({ data: { orderId, type: "BOUQUET", url } }),
-    db.order.update({ where: { id: orderId }, data: { status: nextStatus } }),
-  ]);
+  await db.order.update({ where: { id: orderId }, data: { status: nextStatus } });
   // The order really did become ready, so log that first even when a waiting
   // courier sends it straight on to ASSIGNED_DRIVER. Skipping it would drop
   // the "your bouquet is ready" email (logStatus only fires Klaviyo on READY
@@ -474,6 +504,12 @@ export async function retakeBouquetPhotoAction(orderId: string, formData: FormDa
   ) {
     throw new Error("This order's bouquet photo can no longer be changed.");
   }
+  // Orders with line items have one photo per product, and this form can't
+  // say which product it's replacing — the photo would attach to nothing and
+  // simply never appear. Operations replaces those from the order page.
+  if (await db.orderItem.count({ where: { orderId } })) {
+    throw new Error("Ask Operations to replace the photo for this order.");
+  }
 
   const photo = formData.get("photo");
   if (!(photo instanceof File) || photo.size === 0) {
@@ -501,10 +537,20 @@ export async function retakeBouquetPhotoAction(orderId: string, formData: FormDa
  * assigned or what stage it's at, since Ops already has full override
  * authority elsewhere (see opsSetStatusAction).
  */
-export async function opsReplaceBouquetPhotoAction(orderId: string, formData: FormData) {
+export async function opsReplaceBouquetPhotoAction(
+  orderId: string,
+  orderItemId: string | null,
+  formData: FormData
+) {
   const session = await requireRole("OPERATIONS");
 
-  const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
+  const order = await db.order.findUniqueOrThrow({
+    where: { id: orderId },
+    include: { items: true },
+  });
+  if (orderItemId && !order.items.some((item) => item.id === orderItemId)) {
+    throw new Error("That product isn't on this order.");
+  }
   // AWAITING_PHOTO is the first photo, not a replacement — it's what moves
   // the order to READY, so it goes through opsAddBouquetPhotoAction instead.
   if (
@@ -521,12 +567,15 @@ export async function opsReplaceBouquetPhotoAction(orderId: string, formData: Fo
   }
 
   const url = await savePhoto(orderId, "BOUQUET", photo);
-  await db.photo.create({ data: { orderId, type: "BOUQUET", url } });
+  await db.photo.create({ data: { orderId, orderItemId, type: "BOUQUET", url } });
+  const itemName = order.items.find((item) => item.id === orderItemId)?.name;
   await db.statusEvent.create({
     data: {
       orderId,
       fromStatus: null,
-      toStatus: "Bouquet photo replaced by Operations",
+      toStatus: itemName
+        ? `Photo replaced by Operations — ${itemName}`
+        : "Bouquet photo replaced by Operations",
       employeeId: session.employeeId,
     },
   });

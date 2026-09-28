@@ -118,10 +118,44 @@ model Order {
 
   statusEvents StatusEvent[]
   photos       Photo[]
+  items        OrderItem[]
 
   @@index([status])
   @@index([floristId])
   @@index([driverId])
+}
+
+/// One line of the order — a single product the customer bought.
+///
+/// Added because a four-item order was being flattened into one string of
+/// joined names and one reference photo, which meant the florist saw a
+/// picture of the first product only, and Operations could photograph the
+/// finished order only once. Splitting that string back apart isn't an
+/// option: several product names contain commas of their own ("Luxury Red,
+/// Pink & White Rose Bouquet"), so the join is genuinely lossy.
+///
+/// Orders placed before this existed have no rows here, and every screen
+/// falls back to Order.bouquetName / Order.referenceImageUrl for them.
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Shopify's own line order, so the florist's list matches the invoice.
+  position          Int
+  name              String
+  quantity          Int     @default(1)
+  shopifyProductId  String?
+  /// The product's catalogue photo, fetched per line — the webhook payload
+  /// carries no image, same as for the order as a whole.
+  referenceImageUrl String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  photos Photo[]
+
+  @@unique([orderId, position])
+  @@index([orderId])
 }
 
 // Backs login rate-limiting — see loginAction. Rows are cheap and small;
@@ -158,5 +192,12 @@ model Photo {
   url       String
   createdAt DateTime @default(now()) @db.Timestamptz(3)
 
+  /// Which line this bouquet photo is of. Null for delivery photos (they're
+  /// of the doorstep, not a product) and for bouquet photos taken before
+  /// orders had line items at all.
+  orderItemId String?
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
   @@index([orderId])
+  @@index([orderItemId])
 }

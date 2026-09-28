@@ -13,6 +13,7 @@ import { RetakePhotoForm } from "@/components/retake-photo-form";
 import { SubmitButton } from "@/components/submit-button";
 import { MarkFailedForm } from "@/components/mark-failed-form";
 import { StatusChip } from "@/components/status-chip";
+import { bouquetPhotoUrls } from "@/lib/bouquetPhotos";
 import { ContactActions } from "@/components/contact-actions";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
 import type { OrderStatus } from "@/lib/status";
@@ -24,12 +25,15 @@ export default async function DriverOrderPage(props: PageProps<"/driver/orders/[
 
   const order = await db.order.findUnique({
     where: { id },
-    include: { photos: { orderBy: { createdAt: "desc" } } },
+    include: {
+      items: { orderBy: { position: "asc" } },
+      photos: { orderBy: { createdAt: "desc" } },
+    },
   });
   if (!order) notFound();
   if (order.driverId !== session.employeeId) redirect("/driver");
 
-  const bouquetPhoto = order.photos.find((p) => p.type === "BOUQUET");
+  const bouquetPhotos = bouquetPhotoUrls(order);
   const deliveryPhoto = order.photos.find((p) => p.type === "DELIVERY");
 
   return (
@@ -43,10 +47,16 @@ export default async function DriverOrderPage(props: PageProps<"/driver/orders/[
         <StatusChip status={order.status as OrderStatus} />
       </div>
 
-      {bouquetPhoto && (
-        <div>
-          <ZoomablePhoto src={bouquetPhoto.url} alt="Bouquet for this order" />
-          <p className="text-xs text-muted text-center mt-1.5">This is the bouquet for this order</p>
+      {bouquetPhotos.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {bouquetPhotos.map((url) => (
+            <ZoomablePhoto key={url} src={url} alt="Bouquet for this order" />
+          ))}
+          <p className="text-xs text-muted text-center">
+            {bouquetPhotos.length > 1
+              ? `This order is ${bouquetPhotos.length} items — collect all of them`
+              : "This is the bouquet for this order"}
+          </p>
         </div>
       )}
 

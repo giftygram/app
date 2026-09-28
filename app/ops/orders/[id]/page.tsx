@@ -42,6 +42,7 @@ import { STATUS_META, isOverdue, isDueSoon, type OrderStatus } from "@/lib/statu
 import { requireOpsAccess } from "@/lib/auth";
 import { isFullOperations } from "@/lib/roles";
 import { canAttachCourier } from "@/lib/dispatchReady";
+import { bouquetSlots } from "@/lib/bouquetPhotos";
 import { formatDeliveryWindow, formatDubaiDateTime, formatDubaiTime } from "@/lib/date";
 import {
   driverDeliveryLinkMessage,
@@ -68,6 +69,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
     include: {
       florist: true,
       driver: true,
+      items: { orderBy: { position: "asc" } },
       photos: { orderBy: { createdAt: "desc" } },
       statusEvents: { include: { employee: true }, orderBy: { createdAt: "asc" } },
     },
@@ -101,8 +103,12 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   const bouquetReady = status === "READY" || status === "ASSIGNED_DRIVER";
   const needsBouquetPhoto = fullOps && status === "AWAITING_PHOTO";
 
+  // One entry per product, each pairing what was ordered with the photo
+  // Operations took of it. Collapses to a single unnamed entry for orders
+  // placed before line items existed.
+  const slots = bouquetSlots(order);
+  const photographed = slots.filter((slot) => slot.photoUrl).length;
   // Newest first, so this is always the latest revision after any redo.
-  const bouquetPhoto = order.photos.find((p) => p.type === "BOUQUET");
   const deliveryPhoto = order.photos.find((p) => p.type === "DELIVERY");
 
   const driverLabel = order.driver?.name ?? order.externalDriverName ?? null;
@@ -198,22 +204,74 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
       </div>
 
       {needsBouquetPhoto && (
-        <section className="rounded-2xl border border-pink-300 bg-pink-50 p-4 flex flex-col gap-3">
+        <section className="rounded-2xl border border-pink-300 bg-pink-50 p-4 flex flex-col gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-pink-900">Ready — waiting for your photo</h3>
+            <h3 className="text-sm font-semibold text-pink-900">
+              Ready — waiting for your photo{slots.length > 1 ? "s" : ""}
+            </h3>
             <p className="text-xs text-pink-800 mt-1">
-              {order.florist?.name ?? "The florist"} has finished this bouquet. Photograph it and
-              upload it here: that marks the order ready, emails the customer and puts the photo on
-              their tracking page. Nothing has been sent to them yet.
+              {order.florist?.name ?? "The florist"} has finished this order.{" "}
+              {slots.length > 1
+                ? `It has ${slots.length} products and each one needs its own photo — ${photographed} of ${slots.length} done. The customer is emailed once all ${slots.length} are in.`
+                : "Photograph it and upload it here: that marks the order ready, emails the customer and puts the photo on their tracking page."}{" "}
+              Nothing has been sent to them yet.
             </p>
           </div>
-          <PhotoActionForm
-            action={opsAddBouquetPhotoAction.bind(null, order.id)}
-            photoLabel="Photo of the finished bouquet"
-            photoPlaceholder="Add the bouquet photo"
-            useCamera={false}
-            submitLabel="Save photo & mark ready"
-          />
+
+          {slots.map((slot, i) => (
+            <div
+              key={slot.itemId ?? "single"}
+              className="rounded-xl border border-pink-200 bg-surface p-3 flex flex-col gap-3"
+            >
+              {slot.name && (
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-medium text-foreground">
+                    <span className="text-muted">{i + 1}. </span>
+                    {slot.name}
+                    {slot.quantity > 1 && <span className="text-muted"> × {slot.quantity}</span>}
+                  </p>
+                  {slot.photoUrl && (
+                    <span className="shrink-0 text-xs font-semibold text-emerald-700">Done ✓</span>
+                  )}
+                </div>
+              )}
+
+              {/* The catalogue picture of what this one is meant to look
+                  like, next to the slot for the real thing — so whoever is
+                  shooting four products can tell which is which. */}
+              {slot.referenceImageUrl && !slot.photoUrl && (
+                <div className="flex items-center gap-3">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-line">
+                    <Image src={slot.referenceImageUrl} alt="Reference" fill className="object-cover" />
+                  </div>
+                  <p className="text-xs text-muted">What was ordered</p>
+                </div>
+              )}
+
+              {slot.photoUrl ? (
+                <div className="flex items-center gap-3">
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-line">
+                    <Image src={slot.photoUrl} alt={slot.name ?? "Bouquet"} fill className="object-cover" />
+                  </div>
+                  <RetakePhotoForm
+                    action={opsReplaceBouquetPhotoAction.bind(null, order.id, slot.itemId)}
+                    photoLabel="New photo"
+                    triggerLabel="Retake"
+                  />
+                </div>
+              ) : (
+                <PhotoActionForm
+                  action={opsAddBouquetPhotoAction.bind(null, order.id, slot.itemId)}
+                  photoLabel={slot.name ? `Photo of ${slot.name}` : "Photo of the finished bouquet"}
+                  photoPlaceholder="Add the photo"
+                  useCamera={false}
+                  submitLabel={
+                    photographed === slots.length - 1 ? "Save photo & mark ready" : "Save photo"
+                  }
+                />
+              )}
+            </div>
+          ))}
         </section>
       )}
 
@@ -586,20 +644,37 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         </section>
       )}
 
-      {(order.referenceImageUrl || bouquetPhoto || deliveryPhoto) && (
-        <section className="flex flex-col gap-3">
+      {(slots.some((s) => s.referenceImageUrl || s.photoUrl) || deliveryPhoto) && (
+        <section className="flex flex-col gap-4">
           <h3 className="text-sm font-semibold text-foreground">Photos</h3>
-          <div className="grid grid-cols-2 gap-3">
-            {order.referenceImageUrl && <PhotoCard label="Reference" url={order.referenceImageUrl} />}
-            {bouquetPhoto && <PhotoCard label="Bouquet" url={bouquetPhoto.url} />}
-            {deliveryPhoto && <PhotoCard label="Delivered" url={deliveryPhoto.url} />}
-          </div>
-          {fullOps && bouquetPhoto && (
-            <RetakePhotoForm
-              action={opsReplaceBouquetPhotoAction.bind(null, order.id)}
-              photoLabel="New bouquet photo"
-              triggerLabel="Replace bouquet photo"
-            />
+
+          {slots.map((slot, i) => (
+            <div key={slot.itemId ?? "single"} className="flex flex-col gap-2">
+              {slot.name && (
+                <p className="text-xs font-medium text-foreground">
+                  <span className="text-muted">{i + 1}. </span>
+                  {slot.name}
+                  {slot.quantity > 1 && <span className="text-muted"> × {slot.quantity}</span>}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                {slot.referenceImageUrl && <PhotoCard label="Reference" url={slot.referenceImageUrl} />}
+                {slot.photoUrl && <PhotoCard label="Bouquet" url={slot.photoUrl} />}
+              </div>
+              {fullOps && slot.photoUrl && (
+                <RetakePhotoForm
+                  action={opsReplaceBouquetPhotoAction.bind(null, order.id, slot.itemId)}
+                  photoLabel="New bouquet photo"
+                  triggerLabel="Replace this photo"
+                />
+              )}
+            </div>
+          ))}
+
+          {deliveryPhoto && (
+            <div className="grid grid-cols-2 gap-3">
+              <PhotoCard label="Delivered" url={deliveryPhoto.url} />
+            </div>
           )}
         </section>
       )}

@@ -6,6 +6,7 @@ import {
   type OrderStatus,
 } from "@/lib/status";
 import { formatEventTime } from "@/lib/date";
+import { bouquetPhotoUrls } from "@/lib/bouquetPhotos";
 import { normalizePhone } from "@/lib/whatsapp";
 import { cn } from "@/lib/cn";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
@@ -23,6 +24,7 @@ export default async function TrackPage(props: PageProps<"/track/[token]">) {
     where: { OR: [{ trackingToken: token }, { shopifyOrderToken: token }] },
     include: {
       driver: true,
+      items: { orderBy: { position: "asc" } },
       photos: { orderBy: { createdAt: "desc" } },
       statusEvents: { orderBy: { createdAt: "asc" } },
     },
@@ -56,11 +58,12 @@ export default async function TrackPage(props: PageProps<"/track/[token]">) {
   const status = customerFacingStatus(order.status as OrderStatus);
   const driverName = order.driver?.name ?? order.externalDriverName;
   const driverPhone = order.driver?.phone ?? order.externalDriverPhone;
-  // Customers only ever see the florist's bouquet photo — the delivery
-  // photo is proof-of-delivery for the shop's own records, not for the
-  // recipient (it's often taken at the doorstep, not a flattering shot).
-  // Photos are newest-first, so this is always the latest revision.
-  const bouquetPhoto = order.photos.find((p) => p.type === "BOUQUET");
+  // Customers only ever see the bouquet photos — the delivery photo is
+  // proof-of-delivery for the shop's own records, not for the recipient
+  // (it's often taken at the doorstep, not a flattering shot). One per
+  // product, so an order of four arrives as four pictures; photos are
+  // newest-first, so each is the latest revision.
+  const bouquetPhotos = bouquetPhotoUrls(order);
   const currentIndex = CUSTOMER_TIMELINE.indexOf(status);
 
   // First time each stage was reached, so the timeline can show real timings.
@@ -114,11 +117,15 @@ export default async function TrackPage(props: PageProps<"/track/[token]">) {
               </div>
             )}
 
-            {bouquetPhoto && (
-              <div className="mb-6">
-                <ZoomablePhoto src={bouquetPhoto.url} alt="Your bouquet" />
-                <p className="text-xs text-muted text-center mt-2">
-                  Your bouquet — tap the photo to zoom in
+            {bouquetPhotos.length > 0 && (
+              <div className="mb-6 flex flex-col gap-3">
+                {bouquetPhotos.map((url) => (
+                  <ZoomablePhoto key={url} src={url} alt="Your bouquet" />
+                ))}
+                <p className="text-xs text-muted text-center">
+                  {bouquetPhotos.length > 1
+                    ? "Your order — tap a photo to zoom in"
+                    : "Your bouquet — tap the photo to zoom in"}
                 </p>
               </div>
             )}

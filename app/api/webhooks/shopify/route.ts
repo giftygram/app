@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@/app/generated/prisma/client";
 import { db } from "@/lib/db";
-import { fetchProductImageUrl, mapShopifyOrder, verifyShopifyWebhook, type ShopifyOrderPayload } from "@/lib/shopify";
+import {
+  fetchProductImageUrl,
+  mapShopifyLineItems,
+  mapShopifyOrder,
+  verifyShopifyWebhook,
+  type ShopifyOrderPayload,
+} from "@/lib/shopify";
 import { createUniqueTrackingToken } from "@/lib/trackingToken";
 
 // Shopify expects a fast 2xx response and retries (with backoff, then
@@ -28,12 +34,24 @@ export async function POST(request: Request) {
 
   const mapped = mapShopifyOrder(payload);
 
-  // The main product's photo, not the webhook payload — see
-  // fetchProductImageUrl. Only merged in on success: a transient failure
-  // (rate limit, network blip) must never overwrite an already-fetched
-  // reference image with nothing on a later retry/update.
-  const primaryProductId = payload.line_items?.[0]?.product_id;
-  const referenceImageUrl = primaryProductId ? await fetchProductImageUrl(primaryProductId) : null;
+  // Product photos, which the webhook payload never carries — see
+  // fetchProductImageUrl. One per line, so a four-item order gives the
+  // florist four reference pictures instead of just the first product's.
+  // Each returns null on any failure, and nulls are dropped rather than
+  // written, so a rate limit or network blip can't blank an image that a
+  // previous delivery already resolved.
+  const lineItems = mapShopifyLineItems(payload);
+  const itemImages = await Promise.all(
+    lineItems.map((item) =>
+      item.shopifyProductId ? fetchProductImageUrl(item.shopifyProductId) : null
+    )
+  );
+  const itemsToCreate = lineItems.map((item, i) => ({ ...item, referenceImageUrl: itemImages[i] }));
+
+  // Order.referenceImageUrl stays the first line's image: it's what every
+  // screen showed before line items existed, and it's still the fallback for
+  // orders that have none.
+  const referenceImageUrl = itemImages[0] ?? null;
   const orderData = referenceImageUrl ? { ...mapped, referenceImageUrl } : mapped;
   const { status, ...updatable } = orderData;
 
@@ -56,13 +74,31 @@ export async function POST(request: Request) {
     } else {
       await db.order.update({ where: { id: existing.id }, data: updatable });
     }
+
+    // Lines are filled in once and then left alone. Once they exist,
+    // Operations' photos hang off them, so re-creating them on a routine
+    // redelivery would orphan those photos. Creating them when there are
+    // none also means an order placed before line items existed picks them
+    // up from its next redelivery, for free.
+    if (itemsToCreate.length > 0) {
+      const alreadyHasItems = await db.orderItem.count({ where: { orderId: existing.id } });
+      if (alreadyHasItems === 0) {
+        await db.orderItem.createMany({
+          data: itemsToCreate.map((item) => ({ ...item, orderId: existing.id })),
+        });
+      }
+    }
     return NextResponse.json({ ok: true, orderId: existing.id, deduped: true });
   }
 
   let created;
   try {
     created = await db.order.create({
-      data: { ...orderData, trackingToken: await createUniqueTrackingToken() },
+      data: {
+        ...orderData,
+        trackingToken: await createUniqueTrackingToken(),
+        items: { create: itemsToCreate },
+      },
     });
   } catch (err) {
     // Unique-constraint clash. Either two deliveries for this order raced each

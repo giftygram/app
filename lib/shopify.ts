@@ -159,6 +159,27 @@ function shopifyOrderTokenFrom(order: ShopifyOrderPayload): string | null {
   return url.split("/orders/")[1]?.split("/")[0]?.split("?")[0]?.trim() || null;
 }
 
+/**
+ * The order's lines, in Shopify's own order, ready for OrderItem.create().
+ *
+ * Deliberately separate from mapShopifyOrder's `bouquetName`, which stays a
+ * joined summary string for the board and for older orders. That join can't
+ * be undone — several product names contain commas ("Luxury Red, Pink &
+ * White Rose Bouquet") — so the real lines have to be kept as lines.
+ *
+ * Product images aren't in the payload and are filled in separately; see
+ * fetchProductImageUrl.
+ */
+export function mapShopifyLineItems(order: ShopifyOrderPayload) {
+  return (order.line_items ?? [])
+    .map((item, index) => ({
+      position: index,
+      name: item.name?.trim() || "Item",
+      quantity: typeof item.quantity === "number" && item.quantity > 0 ? item.quantity : 1,
+      shopifyProductId: item.product_id != null ? String(item.product_id) : null,
+    }));
+}
+
 /** Maps a Shopify order payload to our Order.create() input. */
 export function mapShopifyOrder(order: ShopifyOrderPayload) {
   const attr = orderFieldLookup(order);

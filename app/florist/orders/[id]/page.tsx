@@ -10,6 +10,8 @@ import { ZoomablePhoto } from "@/components/zoomable-photo";
 import { StatusChip } from "@/components/status-chip";
 import { ACTIVE_STATUSES, type OrderStatus } from "@/lib/status";
 import { formatDubaiDateTime } from "@/lib/date";
+import { bouquetSlots } from "@/lib/bouquetPhotos";
+import { cn } from "@/lib/cn";
 
 export default async function FloristOrderPage(props: PageProps<"/florist/orders/[id]">) {
   const session = await requireRole("FLORIST");
@@ -17,18 +19,28 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
 
   const order = await db.order.findUnique({
     where: { id },
-    include: { photos: { where: { type: "BOUQUET" }, orderBy: { createdAt: "desc" }, take: 1 } },
+    include: {
+      items: { orderBy: { position: "asc" } },
+      photos: { where: { type: "BOUQUET" }, orderBy: { createdAt: "desc" } },
+    },
   });
   if (!order) notFound();
   if (order.floristId !== session.employeeId) redirect("/florist");
 
   const bouquetPhoto = order.photos[0];
+  // One entry per product. A four-item order is four bouquets to make, and
+  // the florist needs to see all four reference pictures — not just the
+  // first product's, which is all Order.referenceImageUrl ever held.
+  const slots = bouquetSlots(order);
   // Only for orders the florist photographed themselves, under the old flow.
   // The first photo is Operations' job now, so there's nothing to retake
   // while the order is still waiting for one.
   const canRetake =
     order.status !== "ASSIGNED_FLORIST" &&
     order.status !== "AWAITING_PHOTO" &&
+    // Orders with line items have a photo per product; this form can't say
+    // which one it's replacing, so Operations handles those.
+    order.items.length === 0 &&
     ACTIVE_STATUSES.includes(order.status as OrderStatus);
 
   return (
@@ -60,12 +72,38 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
         </div>
       )}
 
-      {order.referenceImageUrl && (
-        <div>
-          <div className="relative aspect-square rounded-2xl overflow-hidden border border-line">
-            <Image src={order.referenceImageUrl} alt="Reference" fill className="object-cover" />
+      {slots.some((slot) => slot.referenceImageUrl) && (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm font-semibold text-foreground">
+            {slots.length > 1 ? `${slots.length} products to make` : "Reference photo from the order"}
+          </p>
+          <div className={cn("grid gap-3", slots.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+            {slots.map((slot, i) => (
+              <div key={slot.itemId ?? "single"}>
+                {slot.referenceImageUrl ? (
+                  <div className="relative aspect-square rounded-2xl overflow-hidden border border-line">
+                    <Image
+                      src={slot.referenceImageUrl}
+                      alt={slot.name ?? "Reference"}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-square rounded-2xl border border-dashed border-line flex items-center justify-center p-3">
+                    <span className="text-xs text-muted text-center">No reference photo</span>
+                  </div>
+                )}
+                {slot.name && (
+                  <p className="text-xs text-foreground mt-1.5 text-center">
+                    {slots.length > 1 && <span className="text-muted">{i + 1}. </span>}
+                    {slot.name}
+                    {slot.quantity > 1 && <span className="text-muted"> × {slot.quantity}</span>}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
-          <p className="text-xs text-muted mt-1.5 text-center">Reference photo from the order</p>
         </div>
       )}
 

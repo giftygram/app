@@ -11,6 +11,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { MarkFailedForm } from "@/components/mark-failed-form";
 import { ContactActions } from "@/components/contact-actions";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
+import { bouquetPhotoUrls } from "@/lib/bouquetPhotos";
 import { DRIVER_PICKUP_MESSAGE } from "@/lib/whatsapp";
 
 export default async function PublicDeliveryPage(props: PageProps<"/deliver/[orderId]">) {
@@ -18,11 +19,14 @@ export default async function PublicDeliveryPage(props: PageProps<"/deliver/[ord
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    include: { photos: { where: { type: "BOUQUET" }, orderBy: { createdAt: "desc" }, take: 1 } },
+    include: {
+      items: { orderBy: { position: "asc" } },
+      photos: { where: { type: "BOUQUET" }, orderBy: { createdAt: "desc" } },
+    },
   });
   if (!order) notFound();
 
-  const bouquetPhoto = order.photos[0];
+  const bouquetPhotos = bouquetPhotoUrls(order);
 
   return (
     <main className="flex-1 flex justify-center bg-background px-4 py-10">
@@ -39,10 +43,16 @@ export default async function PublicDeliveryPage(props: PageProps<"/deliver/[ord
           <p className="font-mono text-sm text-muted mt-1">{order.orderNumber}</p>
         </div>
 
-        {bouquetPhoto && (
-          <div className="mb-6">
-            <ZoomablePhoto src={bouquetPhoto.url} alt="Bouquet for this order" />
-            <p className="text-xs text-muted text-center mt-1.5">This is the bouquet for this order</p>
+        {bouquetPhotos.length > 0 && (
+          <div className="mb-6 flex flex-col gap-3">
+            {bouquetPhotos.map((url) => (
+              <ZoomablePhoto key={url} src={url} alt="Bouquet for this order" />
+            ))}
+            <p className="text-xs text-muted text-center">
+              {bouquetPhotos.length > 1
+                ? `This order is ${bouquetPhotos.length} items — collect all of them`
+                : "This is the bouquet for this order"}
+            </p>
           </div>
         )}
 
