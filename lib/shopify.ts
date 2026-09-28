@@ -29,6 +29,11 @@ type ShopifyLineItem = {
   name?: string | null;
   quantity?: number | null;
   product_id?: number | string | null;
+  // Custom fields attached to the item itself rather than the order. The
+  // delivery date/time picker moved from the cart to the product page on
+  // 28 Sep 2026 (first order affected: #3628), which moved its answers here
+  // from note_attributes. Same field names, same value formats.
+  properties?: { name?: string | null; value?: string | null }[] | null;
 };
 
 export type ShopifyOrderPayload = {
@@ -50,15 +55,47 @@ export type ShopifyOrderPayload = {
   line_items?: ShopifyLineItem[] | null;
 };
 
-/** Note attributes come in as an array of {name, value} — flatten to a map, matched case-insensitively since checkout field labels can vary slightly. */
-export function noteAttributeMap(attrs: ShopifyOrderPayload["note_attributes"]) {
+/**
+ * A dropdown the customer never touched still submits — as the prompt text
+ * sitting in its first <option>. Stored as-is, "Please Select Time..." looks
+ * like a real delivery window on the board and hides the fact that nobody
+ * chose one, so it's treated as no answer at all: the order then lands in
+ * Operations' "No date" review list, which is exactly where it belongs.
+ */
+function isUnansweredPrompt(value: string) {
+  return /^please\s+(select|choose|pick)\b/i.test(value);
+}
+
+/**
+ * One case-insensitive lookup across everywhere checkout can hang a custom
+ * field: the line items' own properties and the order's note attributes.
+ *
+ * Line items are read first because that's where the current product-page
+ * picker writes. Note attributes are the fallback, which is all that orders
+ * placed before 28 Sep 2026 have — and, since those orders carry no line
+ * item properties at all, they resolve exactly as they always did.
+ *
+ * Reading both also means a field moving between the two in future (Gift
+ * Message, Sender Name, …) needs no change here.
+ */
+export function orderFieldLookup(order: ShopifyOrderPayload) {
   const map = new Map<string, string>();
-  for (const attr of attrs ?? []) {
-    if (attr?.name && attr.value != null) {
-      map.set(attr.name.trim().toLowerCase(), attr.value.trim());
-    }
+
+  const add = (name?: string | null, value?: string | null) => {
+    if (!name || value == null) return;
+    const key = name.trim().toLowerCase();
+    const text = value.trim();
+    if (!text || isUnansweredPrompt(text)) return;
+    // First writer wins, so line items take precedence over note attributes.
+    if (!map.has(key)) map.set(key, text);
+  };
+
+  for (const item of order.line_items ?? []) {
+    for (const property of item.properties ?? []) add(property?.name, property?.value);
   }
-  return (key: string) => map.get(key.toLowerCase()) || null;
+  for (const attr of order.note_attributes ?? []) add(attr?.name, attr?.value);
+
+  return (key: string) => map.get(key.trim().toLowerCase()) ?? null;
 }
 
 /**
@@ -124,7 +161,7 @@ function shopifyOrderTokenFrom(order: ShopifyOrderPayload): string | null {
 
 /** Maps a Shopify order payload to our Order.create() input. */
 export function mapShopifyOrder(order: ShopifyOrderPayload) {
-  const attr = noteAttributeMap(order.note_attributes);
+  const attr = orderFieldLookup(order);
 
   const recipient = order.shipping_address ?? order.billing_address ?? null;
   const recipientName = recipient?.name?.trim() || "Unknown recipient";
