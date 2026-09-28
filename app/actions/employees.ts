@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { hashPin } from "@/lib/pin";
+import { ROLES, type Role } from "@/lib/roles";
 
 export async function createEmployeeAction(formData: FormData) {
   await requireRole("OPERATIONS");
@@ -14,7 +15,7 @@ export async function createEmployeeAction(formData: FormData) {
   const pin = String(formData.get("pin") ?? "");
 
   if (!name) throw new Error("Name is required.");
-  if (!["OPERATIONS", "FLORIST", "DRIVER"].includes(role)) {
+  if (!ROLES.includes(role as Role)) {
     throw new Error("Choose a role.");
   }
   if (!/^\d{4}$/.test(pin)) throw new Error("PIN must be exactly 4 digits.");

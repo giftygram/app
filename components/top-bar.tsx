@@ -1,10 +1,5 @@
 import { logoutAction } from "@/app/actions/auth";
-
-const ROLE_LABEL = {
-  OPERATIONS: "Operations",
-  FLORIST: "Florist",
-  DRIVER: "Driver",
-} as const;
+import { ROLE_LABEL, type Role } from "@/lib/roles";
 
 export function TopBar({
   name,
@@ -13,7 +8,7 @@ export function TopBar({
   banner,
 }: {
   name: string;
-  role: keyof typeof ROLE_LABEL;
+  role: Role;
   title: string;
   /** Rendered inside the same sticky header, below the main row — stays
       pinned together with it rather than needing separate offset math. */

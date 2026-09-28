@@ -39,6 +39,8 @@ import { sliderAccountConfigured, sliderStatusLabel } from "@/lib/slider";
 import { SliderOrderForm } from "@/components/slider-order-form";
 import { ContactActions } from "@/components/contact-actions";
 import { STATUS_META, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
+import { requireOpsAccess } from "@/lib/auth";
+import { isFullOperations } from "@/lib/roles";
 import { canAttachCourier } from "@/lib/dispatchReady";
 import { formatDeliveryWindow, formatDubaiDateTime, formatDubaiTime } from "@/lib/date";
 import {
@@ -53,6 +55,13 @@ import { cn } from "@/lib/cn";
 
 export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]">) {
   const { id } = await props.params;
+  // Service & sales see this whole page — they can't answer a customer
+  // without it. What they don't get is the controls that commit the shop:
+  // dispatch, cancel, status override, marking a delivery done. Each of
+  // those actions re-checks on the server; hiding them here is so the screen
+  // only offers what the person can actually do.
+  const session = await requireOpsAccess();
+  const fullOps = isFullOperations(session.role);
 
   const order = await db.order.findUnique({
     where: { id },
@@ -73,18 +82,24 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   const status = order.status as OrderStatus;
   const overdue = isOverdue(order.deadlineAt, status);
   const dueSoon = isDueSoon(order.deadlineAt, status);
-  const canCancel = status !== "DELIVERED" && status !== "CANCELLED";
+  // An order that's been delivered or cancelled is finished — neither of
+  // these applies to it any more. They're separate flags because they're
+  // separate rights: moving a delivery is routine customer service,
+  // cancelling the order is not.
+  const orderStillOpen = status !== "DELIVERED" && status !== "CANCELLED";
+  const canCancel = fullOps && orderStillOpen;
+  const canReschedule = orderStillOpen;
   // A driver can be lined up from the moment the order lands — Operations
   // books transport while the florist is still working. Attaching one doesn't
   // move the order; it reaches the driver's queue once the bouquet is ready
   // and approved (lib/dispatchReady.ts).
-  const canAssignDriver = canAttachCourier(status);
+  const canAssignDriver = fullOps && canAttachCourier(status);
   // "Ready" in the sense the rest of this page cares about: the bouquet is
   // finished *and* photographed, so it can actually be handed over. An order
   // in AWAITING_PHOTO is made but must not leave the shop yet — once it does,
   // the photo can't be taken at all.
   const bouquetReady = status === "READY" || status === "ASSIGNED_DRIVER";
-  const needsBouquetPhoto = status === "AWAITING_PHOTO";
+  const needsBouquetPhoto = fullOps && status === "AWAITING_PHOTO";
 
   // Newest first, so this is always the latest revision after any redo.
   const bouquetPhoto = order.photos.find((p) => p.type === "BOUQUET");
@@ -94,7 +109,8 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   const driverPhone = order.driver?.phone ?? order.externalDriverPhone ?? null;
   const isExternalDriver = !order.driverId && !!order.externalDriverName;
   const showDeliverySection =
-    status === "ASSIGNED_DRIVER" || status === "OUT_FOR_DELIVERY" || status === "FAILED_DELIVERY";
+    fullOps &&
+    (status === "ASSIGNED_DRIVER" || status === "OUT_FOR_DELIVERY" || status === "FAILED_DELIVERY");
 
   // Slider's riders mark pickup and delivery in Slider's own app, so linking
   // the order there is what makes those updates — and their delivery photo —
@@ -104,11 +120,13 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
   // they're configured the button can only fail, so don't show one.
   const canOrderSlider = canAssignDriver && sliderAccountConfigured();
 
+  // An order already with Slider stays visible to Service & sales — "where is
+  // my order" is answered by the rider's live tracking, and reading it
+  // commits nothing. Booking, linking and unlinking are Operations'.
   const showSliderSection =
     Boolean(order.sliderOrderNumber) ||
     canAssignDriver ||
-    status === "OUT_FOR_DELIVERY" ||
-    status === "FAILED_DELIVERY";
+    (fullOps && (status === "OUT_FOR_DELIVERY" || status === "FAILED_DELIVERY"));
 
   const deliverLink = `${SITE_URL}/deliver/${order.id}`;
   const trackingLink = `${SITE_URL}/track/${encodeURIComponent(order.trackingToken)}`;
@@ -199,24 +217,26 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         </section>
       )}
 
-      {canCancel && (
+      {canReschedule && (
         <RescheduleForm
           currentDeadline={order.deadlineAt}
           action={rescheduleOrderAction.bind(null, order.id)}
         />
       )}
 
-      <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Change status</h3>
-        <p className="text-xs text-muted">
-          Manual override — moves the order directly to any status, skipping the normal checks.
-        </p>
-        {/* key resets the uncontrolled <select> whenever the real status
-            changes underneath it — otherwise a completed override (or
-            anyone else's concurrent change) leaves the dropdown showing a
-            stale value even though the chip above is correct. */}
-        <StatusOverride key={status} orderId={order.id} current={status} action={opsSetStatusAction} />
-      </section>
+      {fullOps && (
+        <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Change status</h3>
+          <p className="text-xs text-muted">
+            Manual override — moves the order directly to any status, skipping the normal checks.
+          </p>
+          {/* key resets the uncontrolled <select> whenever the real status
+              changes underneath it — otherwise a completed override (or
+              anyone else's concurrent change) leaves the dropdown showing a
+              stale value even though the chip above is correct. */}
+          <StatusOverride key={status} orderId={order.id} current={status} action={opsSetStatusAction} />
+        </section>
+      )}
 
       <section className="rounded-2xl border border-line bg-surface p-4 flex flex-col gap-3">
         <h3 className="text-sm font-semibold text-foreground">Recipient</h3>
@@ -259,13 +279,19 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         </div>
         <div>
           <p className="text-xs text-muted mb-1.5">Florist</p>
-          <AssignSelect
-            orderId={order.id}
-            value={order.floristId}
-            options={florists}
-            placeholder="Assign a florist"
-            action={assignFloristAction}
-          />
+          {fullOps ? (
+            <AssignSelect
+              orderId={order.id}
+              value={order.floristId}
+              options={florists}
+              placeholder="Assign a florist"
+              action={assignFloristAction}
+            />
+          ) : (
+            <p className="text-sm text-foreground">
+              {order.florist?.name ?? <span className="text-muted">Not assigned yet</span>}
+            </p>
+          )}
         </div>
         <div>
           <p className="text-xs text-muted mb-1.5">Driver</p>
@@ -287,16 +313,21 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                   >
                     📞 {driverPhone}
                   </a>
-                  <a
-                    href={whatsappLink(driverPhone, driverDeliveryLinkMessage(deliverLink))}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-foreground hover:border-brand transition-colors"
-                  >
-                    💬 Send on WhatsApp
-                  </a>
+                  {/* Sends the courier their delivery link, which is what
+                      lets them mark the order delivered — handing that out
+                      is dispatch, not customer service. */}
+                  {fullOps && (
+                    <a
+                      href={whatsappLink(driverPhone, driverDeliveryLinkMessage(deliverLink))}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-foreground hover:border-brand transition-colors"
+                    >
+                      💬 Send on WhatsApp
+                    </a>
+                  )}
                 </div>
-              ) : (
+              ) : fullOps ? (
                 <form
                   action={
                     order.driver
@@ -319,20 +350,30 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                     Save
                   </SubmitButton>
                 </form>
+              ) : null}
+              {/* Editing the courier's own record, and the no-login link that
+                  lets them close the delivery out, are both dispatch. */}
+              {fullOps && (
+                <>
+                  <EditDriverForm
+                    currentName={driverLabel ?? ""}
+                    currentPhone={driverPhone}
+                    action={
+                      order.driver
+                        ? updateDriverProfileAction.bind(null, order.driver.id)
+                        : updateExternalDriverAction.bind(null, order.id)
+                    }
+                  />
+                  <div className="mt-0.5">
+                    <CopyLink path={`/deliver/${order.id}`} />
+                  </div>
+                </>
               )}
-              <EditDriverForm
-                currentName={driverLabel ?? ""}
-                currentPhone={driverPhone}
-                action={
-                  order.driver
-                    ? updateDriverProfileAction.bind(null, order.driver.id)
-                    : updateExternalDriverAction.bind(null, order.id)
-                }
-              />
-              <div className="mt-0.5">
-                <CopyLink path={`/deliver/${order.id}`} />
-              </div>
             </div>
+          )}
+
+          {!fullOps && !order.driver && !order.externalDriverName && (
+            <p className="text-sm text-muted">No driver assigned yet.</p>
           )}
 
           {canAssignDriver ? (
@@ -438,6 +479,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                 </div>
               )}
 
+              {fullOps && (
               <div className="flex gap-2">
                 <form action={syncSliderOrderAction.bind(null, order.id)} className="flex-1">
                   <SubmitButton
@@ -458,6 +500,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
                   </ConfirmSubmit>
                 </form>
               </div>
+              )}
             </>
           ) : (
             <>
@@ -551,7 +594,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
             {bouquetPhoto && <PhotoCard label="Bouquet" url={bouquetPhoto.url} />}
             {deliveryPhoto && <PhotoCard label="Delivered" url={deliveryPhoto.url} />}
           </div>
-          {bouquetPhoto && (
+          {fullOps && bouquetPhoto && (
             <RetakePhotoForm
               action={opsReplaceBouquetPhotoAction.bind(null, order.id)}
               photoLabel="New bouquet photo"

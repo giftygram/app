@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { verifyPin } from "@/lib/pin";
 import { createSessionToken } from "@/lib/session";
 import { SESSION_COOKIE, homeForRole } from "@/lib/auth";
+import type { Role } from "@/lib/roles";
 
 type LoginResult = { ok: true; home: string } | { ok: false; error: string };
 
@@ -53,7 +54,7 @@ export async function loginAction(
     return { ok: false, error: "Wrong PIN. Try again." };
   }
 
-  const role = employee.role as "OPERATIONS" | "FLORIST" | "DRIVER";
+  const role = employee.role as Role;
   const token = createSessionToken({
     employeeId: employee.id,
     name: employee.name,

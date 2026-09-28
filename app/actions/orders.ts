@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireRole } from "@/lib/auth";
+import { requireOpsAccess, requireRole } from "@/lib/auth";
 import { nextWhatsAppOrderNumber } from "@/lib/orderNumber";
 import { createUniqueTrackingToken } from "@/lib/trackingToken";
 import { savePhoto } from "@/lib/photos";
@@ -18,7 +18,7 @@ import { logStatus } from "@/lib/statusLog";
 import { assertCanAttachCourier, shouldPromoteOnAttach } from "@/lib/dispatchReady";
 
 export async function createOrderAction(formData: FormData) {
-  const session = await requireRole("OPERATIONS");
+  const session = await requireOpsAccess();
 
   const senderName = String(formData.get("senderName") ?? "").trim() || null;
   const senderPhone = String(formData.get("senderPhone") ?? "").trim() || null;
@@ -77,7 +77,7 @@ export async function createOrderAction(formData: FormData) {
 
 /** Lets Operations fix a typo'd address, etc. after the fact. */
 export async function updateOrderAction(orderId: string, formData: FormData) {
-  await requireRole("OPERATIONS");
+  await requireOpsAccess();
 
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
 
@@ -147,7 +147,7 @@ export async function updateOrderAction(orderId: string, formData: FormData) {
  * changing.
  */
 export async function rescheduleOrderAction(orderId: string, formData: FormData) {
-  const session = await requireRole("OPERATIONS");
+  const session = await requireOpsAccess();
 
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
 
@@ -177,7 +177,7 @@ export async function rescheduleOrderAction(orderId: string, formData: FormData)
  * WhatsApp), not at order creation.
  */
 export async function updateMapsLinkAction(orderId: string, formData: FormData) {
-  await requireRole("OPERATIONS");
+  await requireOpsAccess();
 
   const mapsLink = String(formData.get("mapsLink") ?? "").trim() || null;
 

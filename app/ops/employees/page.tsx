@@ -4,13 +4,18 @@ import {
   setEmployeeActiveAction,
   updateEmployeePhoneAction,
 } from "@/app/actions/employees";
+import { requireRole } from "@/lib/auth";
 import { ToggleActive } from "@/components/toggle-active";
 import { SubmitButton } from "@/components/submit-button";
 import { normalizePhone } from "@/lib/whatsapp";
-
-const ROLE_LABEL = { OPERATIONS: "Operations", FLORIST: "Florist", DRIVER: "Driver" } as const;
+import { ROLES, ROLE_DESCRIPTION, ROLE_LABEL, type Role } from "@/lib/roles";
 
 export default async function EmployeesPage() {
+  // Checked here, not just in the layout: the layout now admits Service &
+  // sales too, and this page is exactly what they must not reach. Every
+  // action it calls re-checks as well.
+  await requireRole("OPERATIONS");
+
   const employees = await db.employee.findMany({ orderBy: [{ role: "asc" }, { name: "asc" }] });
 
   return (
@@ -34,9 +39,11 @@ export default async function EmployeesPage() {
               <option value="" disabled>
                 Role
               </option>
-              <option value="OPERATIONS">Operations</option>
-              <option value="FLORIST">Florist</option>
-              <option value="DRIVER">Driver</option>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]} — {ROLE_DESCRIPTION[r]}
+                </option>
+              ))}
             </select>
             <input
               name="pin"
@@ -72,7 +79,7 @@ export default async function EmployeesPage() {
                   {e.name}
                   {!e.active && <span className="text-muted font-normal"> (inactive)</span>}
                 </p>
-                <p className="text-xs text-muted">{ROLE_LABEL[e.role as keyof typeof ROLE_LABEL]}</p>
+                <p className="text-xs text-muted">{ROLE_LABEL[e.role as Role] ?? e.role}</p>
               </div>
               <ToggleActive employeeId={e.id} active={e.active} action={setEmployeeActiveAction} />
             </div>

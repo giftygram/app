@@ -6,14 +6,9 @@ import Image from "next/image";
 import { loginAction } from "@/app/actions/auth";
 import { cn } from "@/lib/cn";
 
-type Role = "OPERATIONS" | "FLORIST" | "DRIVER";
-type Employee = { id: string; name: string; role: Role };
+import { ROLES, ROLE_LABEL, type Role } from "@/lib/roles";
 
-const ROLE_LABEL: Record<Role, string> = {
-  OPERATIONS: "Operations",
-  FLORIST: "Florist",
-  DRIVER: "Driver",
-};
+type Employee = { id: string; name: string; role: Role };
 
 export default function LoginScreen({ employees }: { employees: Employee[] }) {
   const [role, setRole] = useState<Role>("OPERATIONS");
@@ -43,8 +38,11 @@ export default function LoginScreen({ employees }: { employees: Employee[] }) {
           <PinPad employee={selected} onBack={() => setSelected(null)} />
         ) : (
           <div className="bg-surface border border-line rounded-2xl p-5 shadow-sm">
-            <div className="grid grid-cols-3 gap-1 mb-5 bg-background rounded-xl p-1">
-              {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+            {/* Two rows of two rather than one row of four: "Service & sales"
+                doesn't fit a quarter-width tab on a phone, and this screen is
+                opened on a phone almost every time. */}
+            <div className="grid grid-cols-2 gap-1 mb-5 bg-background rounded-xl p-1">
+              {ROLES.map((r) => (
                 <button
                   key={r}
                   onClick={() => setRole(r)}

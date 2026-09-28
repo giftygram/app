@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { requireRole } from "@/lib/auth";
+import { requireOpsAccess } from "@/lib/auth";
 import { formatDeliveryWindow } from "@/lib/date";
 import { OrderPrintCards } from "@/components/order-print-cards";
 import "./print.css";
 
 export default async function OrderPrintPage(props: PageProps<"/print/orders/[id]">) {
-  await requireRole("OPERATIONS");
+  await requireOpsAccess();
   const { id } = await props.params;
 
   const order = await db.order.findUnique({

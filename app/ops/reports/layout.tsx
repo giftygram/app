@@ -1,7 +1,12 @@
 import Link from "next/link";
+import { requireRole } from "@/lib/auth";
 import { ReportTabs } from "@/components/report-tabs";
 
-export default function ReportsLayout({ children }: LayoutProps<"/ops/reports">) {
+export default async function ReportsLayout({ children }: LayoutProps<"/ops/reports">) {
+  // Staff output figures are Operations'. Gating the whole subtree here means
+  // a report added later is covered without anyone having to remember.
+  await requireRole("OPERATIONS");
+
   return (
     <div className="flex flex-col gap-5">
       <div>

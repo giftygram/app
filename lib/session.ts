@@ -1,9 +1,10 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import type { Role } from "@/lib/roles";
 
 export type SessionPayload = {
   employeeId: string;
   name: string;
-  role: "OPERATIONS" | "FLORIST" | "DRIVER";
+  role: Role;
 };
 
 // A missing SESSION_SECRET in production would silently sign every session

@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Role } from "@/lib/roles";
 import { getSession, homeForRole } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import LoginScreen from "./login-screen";
@@ -15,7 +16,7 @@ export default async function LoginPage() {
 
   return (
     <LoginScreen
-      employees={employees as { id: string; name: string; role: "OPERATIONS" | "FLORIST" | "DRIVER" }[]}
+      employees={employees as { id: string; name: string; role: Role }[]}
     />
   );
 }
