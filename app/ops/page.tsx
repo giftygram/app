@@ -14,6 +14,9 @@ const FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "All" },
   { key: "not_delivered", label: "Not delivered" },
   { key: "NEW", label: "New" },
+  // Sits between New and Needs photo so the chips read in the order an
+  // order actually moves through the shop.
+  { key: "ASSIGNED_FLORIST", label: "With florist" },
   { key: "AWAITING_PHOTO", label: "Needs photo" },
   { key: "READY", label: "Ready" },
   { key: "ASSIGNED_DRIVER", label: "Waiting for pickup" },
