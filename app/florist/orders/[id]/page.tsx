@@ -7,6 +7,7 @@ import { markReadyAction, retakeBouquetPhotoAction } from "@/app/actions/orders"
 import { RetakePhotoForm } from "@/components/retake-photo-form";
 import { SubmitButton } from "@/components/submit-button";
 import { ZoomablePhoto } from "@/components/zoomable-photo";
+import { InternalNote } from "@/components/internal-note";
 import { StatusChip } from "@/components/status-chip";
 import { ACTIVE_STATUSES, type OrderStatus } from "@/lib/status";
 import { formatDubaiDateTime } from "@/lib/date";
@@ -111,7 +112,7 @@ export default async function FloristOrderPage(props: PageProps<"/florist/orders
         {order.bouquetName && <Row label="Bouquet" value={order.bouquetName} />}
         {order.occasion && <Row label="Occasion" value={order.occasion} />}
         {order.cardMessage && <Row label="Card message" value={order.cardMessage} />}
-        {order.notes && <Row label="Notes" value={order.notes} />}
+        {order.notes && <InternalNote value={order.notes} label="Note — read this" />}
         {!order.bouquetName && !order.occasion && !order.cardMessage && !order.notes && (
           <p className="text-sm text-muted">No extra details for this order.</p>
         )}

@@ -128,6 +128,54 @@
   word-break: break-word;
 }
 
+/* The customer note carries the instructions that change what gets made —
+   "add a red heart balloon", "this one is free". Set as a plain field it
+   read like every other line and was being missed on the bench, so it gets
+   the same dark red as the far-emirate badge, bold, and noticeably larger
+   than the 8.5pt the rest of the grid uses.
+
+   The card is a fixed-height A6 with overflow hidden, so this can't grow
+   without limit: past roughly 220 characters it steps back down a size
+   rather than pushing the recipient and address off the card. */
+.ops-note-box {
+  border: 0.4mm solid #fca5a5;
+  border-radius: 1.5mm;
+  background: #fef2f2;
+  padding: 2mm 2.5mm;
+}
+
+.ops-note-label {
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #b91c1c;
+  margin-bottom: 0.8mm;
+}
+
+.ops-note-value {
+  font-size: 11.5pt;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #b91c1c;
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+/* Two step-downs, because one wasn't enough: a 400-character note at 9.5pt
+   still pushed the courier signature box off the bottom of the card. At the
+   smallest tier the note is the same size as every other field but keeps the
+   colour, the weight and the box, so it still reads as the loud one. */
+.ops-note-value-long {
+  font-size: 9.5pt;
+  line-height: 1.2;
+}
+
+.ops-note-value-longer {
+  font-size: 8.5pt;
+  line-height: 1.2;
+}
+
 /* Shown instead of a plain "Yes/No" — printing several orders in a row
    made it too easy to mix up which physical message card belonged to
    which order card, so the actual text is a quick visual match. The

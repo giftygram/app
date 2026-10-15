@@ -36,6 +36,19 @@ function nextPaint(): Promise<void> {
   });
 }
 
+/** The note steps down a size at each of these lengths. The card is a
+ *  fixed-height A6 with overflow hidden, so a long note left at full size
+ *  silently pushes the recipient, address and courier signature box off the
+ *  bottom — measured, not guessed. */
+const NOTE_SHRINK_AT = 160;
+const NOTE_SHRINK_AGAIN_AT = 320;
+
+function noteSizeClass(note: string) {
+  if (note.length > NOTE_SHRINK_AGAIN_AT) return "ops-note-value ops-note-value-longer";
+  if (note.length > NOTE_SHRINK_AT) return "ops-note-value ops-note-value-long";
+  return "ops-note-value";
+}
+
 export function OrderPrintCards({
   orderId,
   orderNumber,
@@ -230,7 +243,25 @@ export function OrderPrintCards({
               {cardMessagePreview ?? "No card message"}
             </div>
           </div>
-          <Field label="Customer note" value={customerNote} />
+          {/* Deliberately the loudest thing on the card after the order
+              number. This is where "add a red balloon" lives, and it was
+              being missed when it read like one more grey field. */}
+          {customerNote && (
+            <div className="ops-note-box">
+              <div className="ops-note-label">⚠ Customer note</div>
+              <div
+                className={noteSizeClass(customerNote)}
+                dir={isArabicText(customerNote) ? "rtl" : "ltr"}
+                style={{
+                  fontFamily: isArabicText(customerNote)
+                    ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif'
+                    : undefined,
+                }}
+              >
+                {customerNote}
+              </div>
+            </div>
+          )}
           <Field label="Recipient" value={`${recipientName} — ${recipientPhone}`} />
           <Field label="Address" value={deliveryAddress} />
           {senderName && <Field label="Sender" value={senderPhone ? `${senderName} — ${senderPhone}` : senderName} />}

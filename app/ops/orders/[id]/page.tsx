@@ -38,6 +38,7 @@ import {
 import { sliderAccountConfigured, sliderStatusLabel } from "@/lib/slider";
 import { SliderOrderForm } from "@/components/slider-order-form";
 import { ContactActions } from "@/components/contact-actions";
+import { InternalNote } from "@/components/internal-note";
 import { STATUS_META, isOverdue, isDueSoon, type OrderStatus } from "@/lib/status";
 import { requireOpsAccess } from "@/lib/auth";
 import { isFullOperations } from "@/lib/roles";
@@ -307,7 +308,7 @@ export default async function OrderDetailPage(props: PageProps<"/ops/orders/[id]
         {order.occasion && <Row label="Occasion" value={order.occasion} />}
         {order.bouquetName && <Row label="Bouquet" value={order.bouquetName} />}
         {order.cardMessage && <Row label="Card message" value={order.cardMessage} />}
-        {order.notes && <Row label="Internal notes" value={order.notes} />}
+        {order.notes && <InternalNote value={order.notes} />}
         <ContactActions
           phone={order.recipientPhone}
           whatsappMessage={OPS_LOCATION_REQUEST_MESSAGE}
