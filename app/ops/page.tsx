@@ -189,7 +189,20 @@ export default async function OpsBoardPage(props: PageProps<"/ops">) {
 
       <div className="flex flex-col gap-2">
         <DateNav selectedDate={selectedDate} today={today} basePath="/ops" />
-        <DayStats counts={counts} total={dayOrders.length} />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <DayStats counts={counts} total={dayOrders.length} />
+          {/* Carries whichever day, status and slot are on screen, so this
+              prints the run being looked at rather than a fixed "today". */}
+          {dayOrders.length > 0 && (
+            <Link
+              href={`/print/day?date=${toDateParam(selectedDate)}${filter !== "all" ? `&status=${filter}` : ""}${slot ? `&slot=${encodeURIComponent(slot)}` : ""}`}
+              target="_blank"
+              className="shrink-0 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-foreground hover:border-brand transition-colors"
+            >
+              🖨️ Print all cards
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">

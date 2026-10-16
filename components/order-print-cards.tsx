@@ -5,6 +5,7 @@ import { Lora } from "next/font/google";
 import { isArabicText } from "@/lib/language";
 import { isFarEmirate } from "@/lib/emirates";
 import { cn } from "@/lib/cn";
+import { cardsToPdf } from "@/lib/printPdf";
 
 const lora = Lora({ subsets: ["latin"], weight: ["400", "500", "600"] });
 
@@ -16,14 +17,33 @@ const lora = Lora({ subsets: ["latin"], weight: ["400", "500", "600"] });
 const MAX_FONT_SIZE = 18;
 const MIN_FONT_SIZE = 7;
 
-/** Resolves once an <img> has finished loading, or immediately if it already has. */
+/** How long to wait on one image before carrying on regardless. */
+const IMAGE_WAIT_MS = 1500;
+
+/**
+ * Resolves once an <img> has finished loading, or immediately if it already
+ * has — but never blocks indefinitely.
+ *
+ * The timeout is not paranoia: on a day sheet holding ~80 images, decode()
+ * stops resolving altogether (measured — it hung for a single image on a
+ * page with 79 of them), which left every card stuck before it could be
+ * measured and the Download button disabled forever. decode() is only a
+ * nicety here — `complete`, or a `load` event, already means the bitmap is
+ * in, and the nextPaint() that follows is what actually guarantees layout
+ * has settled — so losing the race costs nothing.
+ */
 function waitForImage(img: HTMLImageElement | null): Promise<void> {
   if (!img) return Promise.resolve();
-  if (img.complete) return img.decode().catch(() => undefined);
-  return new Promise((resolve) => {
-    img.addEventListener("load", () => resolve(), { once: true });
-    img.addEventListener("error", () => resolve(), { once: true });
-  });
+  const settled: Promise<unknown> = img.complete
+    ? img.decode().catch(() => undefined)
+    : new Promise((resolve) => {
+        img.addEventListener("load", () => resolve(undefined), { once: true });
+        img.addEventListener("error", () => resolve(undefined), { once: true });
+      });
+  return Promise.race([
+    settled,
+    new Promise((resolve) => setTimeout(resolve, IMAGE_WAIT_MS)),
+  ]).then(() => undefined);
 }
 
 /** Resolves after the browser has actually painted a frame — fonts/images
@@ -66,6 +86,8 @@ export function OrderPrintCards({
   floristName,
   driverLabel,
   isExternalDriver,
+  embedded = false,
+  onReady,
 }: {
   orderId: string;
   orderNumber: string;
@@ -83,6 +105,13 @@ export function OrderPrintCards({
   floristName: string | null;
   driverLabel: string | null;
   isExternalDriver: boolean;
+  /** Rendered as one order among many on a day sheet: no toolbar and no
+   *  page chrome, because the sheet owns both. */
+  embedded?: boolean;
+  /** Fires once this order's message text has been fitted and its cards are
+   *  safe to rasterise — the day sheet waits for every order before it will
+   *  let anyone press Download. */
+  onReady?: () => void;
 }) {
   const hasMessage = !!cardMessage;
   const arabic = hasMessage && isArabicText(cardMessage);
@@ -103,6 +132,12 @@ export function OrderPrintCards({
   const messageTextRef = useRef<HTMLParagraphElement>(null);
   const [ready, setReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // Held in a ref so an inline parent callback doesn't retrigger the
+  // measure-and-shrink effect on every render.
+  const onReadyRef = useRef(onReady);
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +181,7 @@ export function OrderPrintCards({
       }
       if (cancelled) return;
       setReady(true);
+      onReadyRef.current?.();
     }
 
     prepare();
@@ -163,26 +199,107 @@ export function OrderPrintCards({
   async function downloadPdf() {
     setDownloading(true);
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf"),
-      ]);
-
-      const cards = Array.from(document.querySelectorAll<HTMLElement>(".card"));
-      const doc = new jsPDF({ unit: "mm", format: [105, 148], orientation: "portrait" });
-
-      for (let i = 0; i < cards.length; i++) {
-        const canvas = await html2canvas(cards[i], { scale: 3, useCORS: true, backgroundColor: "#ffffff" });
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-        if (i > 0) doc.addPage([105, 148], "portrait");
-        doc.addImage(dataUrl, "JPEG", 0, 0, 105, 148);
-      }
-
-      doc.save(`GiftyGram-${orderNumber.replace(/[^\w-]+/g, "")}.pdf`);
+      await cardsToPdf(`GiftyGram-${orderNumber.replace(/[^\w-]+/g, "")}.pdf`);
     } finally {
       setDownloading(false);
     }
   }
+
+  const cards = (
+    <>
+    <div className="card ops-card">
+      <div className="ops-card-header">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img ref={headerIconRef} src="/flower-icon.png" alt="" />
+        <span>GiftyGram Flowers — Operations card</span>
+      </div>
+
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="ops-field-label">Order number</div>
+          <div className="ops-card-order-number">{orderNumber}</div>
+        </div>
+        {deliveryArea && (
+          <div className={cn("ops-area-badge", isFar && "ops-area-badge-far")}>
+            {isFar && "🚗 "}
+            {deliveryArea}
+          </div>
+        )}
+      </div>
+
+      <div className="ops-field-grid">
+        <Field label="Bouquet" value={bouquetName} />
+        <Field label="Occasion" value={occasion} />
+        <Field label="Deliver by" value={deliverBy ?? "No date chosen"} />
+        <div>
+          <div className="ops-field-label">Card message</div>
+          <div
+            className="ops-field-value ops-field-value-message"
+            dir={arabic ? "rtl" : "ltr"}
+            style={{ fontFamily: arabic ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif' : undefined }}
+          >
+            {cardMessagePreview ?? "No card message"}
+          </div>
+        </div>
+        {/* Deliberately the loudest thing on the card after the order
+            number. This is where "add a red balloon" lives, and it was
+            being missed when it read like one more grey field. */}
+        {customerNote && (
+          <div className="ops-note-box">
+            <div className="ops-note-label">⚠ Customer note</div>
+            <div
+              className={noteSizeClass(customerNote)}
+              dir={isArabicText(customerNote) ? "rtl" : "ltr"}
+              style={{
+                fontFamily: isArabicText(customerNote)
+                  ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif'
+                  : undefined,
+              }}
+            >
+              {customerNote}
+            </div>
+          </div>
+        )}
+        <Field label="Recipient" value={`${recipientName} — ${recipientPhone}`} />
+        <Field label="Address" value={deliveryAddress} />
+        {senderName && <Field label="Sender" value={senderPhone ? `${senderName} — ${senderPhone}` : senderName} />}
+        {floristName && <Field label="Florist" value={floristName} />}
+        {driverLabel && (
+          <Field label="Driver" value={isExternalDriver ? `${driverLabel} (outside courier)` : driverLabel} />
+        )}
+      </div>
+
+      <div className="ops-card-spacer" />
+
+      <div className="ops-courier-box">
+        <div className="ops-field-label">Outside courier ID</div>
+        <div className="ops-courier-line" />
+      </div>
+    </div>
+
+    {hasMessage && (
+      <div className="card message-card">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img ref={messageLogoRef} src="/logo.png" alt="GiftyGram Flowers" className="message-card-logo" />
+        <div className="message-card-body" ref={messageBoxRef}>
+          <p
+            ref={messageTextRef}
+            className={cn("message-card-text", !arabic && lora.className)}
+            dir={arabic ? "rtl" : "ltr"}
+            lang={arabic ? "ar" : "en"}
+            style={{ fontFamily: arabic ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif' : undefined }}
+          >
+            {cardMessage}
+          </p>
+        </div>
+      </div>
+    )}
+    </>
+  );
+
+  // On a day sheet the parent owns the toolbar and the page chrome, so
+  // this renders nothing but the cards themselves.
+  if (embedded) return cards;
 
   return (
     <div className="print-page min-h-screen">
@@ -209,93 +326,7 @@ export function OrderPrintCards({
         </div>
       </div>
 
-      <div className="card ops-card">
-        <div className="ops-card-header">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img ref={headerIconRef} src="/flower-icon.png" alt="" />
-          <span>GiftyGram Flowers — Operations card</span>
-        </div>
-
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <div className="ops-field-label">Order number</div>
-            <div className="ops-card-order-number">{orderNumber}</div>
-          </div>
-          {deliveryArea && (
-            <div className={cn("ops-area-badge", isFar && "ops-area-badge-far")}>
-              {isFar && "🚗 "}
-              {deliveryArea}
-            </div>
-          )}
-        </div>
-
-        <div className="ops-field-grid">
-          <Field label="Bouquet" value={bouquetName} />
-          <Field label="Occasion" value={occasion} />
-          <Field label="Deliver by" value={deliverBy ?? "No date chosen"} />
-          <div>
-            <div className="ops-field-label">Card message</div>
-            <div
-              className="ops-field-value ops-field-value-message"
-              dir={arabic ? "rtl" : "ltr"}
-              style={{ fontFamily: arabic ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif' : undefined }}
-            >
-              {cardMessagePreview ?? "No card message"}
-            </div>
-          </div>
-          {/* Deliberately the loudest thing on the card after the order
-              number. This is where "add a red balloon" lives, and it was
-              being missed when it read like one more grey field. */}
-          {customerNote && (
-            <div className="ops-note-box">
-              <div className="ops-note-label">⚠ Customer note</div>
-              <div
-                className={noteSizeClass(customerNote)}
-                dir={isArabicText(customerNote) ? "rtl" : "ltr"}
-                style={{
-                  fontFamily: isArabicText(customerNote)
-                    ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif'
-                    : undefined,
-                }}
-              >
-                {customerNote}
-              </div>
-            </div>
-          )}
-          <Field label="Recipient" value={`${recipientName} — ${recipientPhone}`} />
-          <Field label="Address" value={deliveryAddress} />
-          {senderName && <Field label="Sender" value={senderPhone ? `${senderName} — ${senderPhone}` : senderName} />}
-          {floristName && <Field label="Florist" value={floristName} />}
-          {driverLabel && (
-            <Field label="Driver" value={isExternalDriver ? `${driverLabel} (outside courier)` : driverLabel} />
-          )}
-        </div>
-
-        <div className="ops-card-spacer" />
-
-        <div className="ops-courier-box">
-          <div className="ops-field-label">Outside courier ID</div>
-          <div className="ops-courier-line" />
-        </div>
-      </div>
-
-      {hasMessage && (
-        <div className="card message-card">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img ref={messageLogoRef} src="/logo.png" alt="GiftyGram Flowers" className="message-card-logo" />
-          <div className="message-card-body" ref={messageBoxRef}>
-            <p
-              ref={messageTextRef}
-              className={cn("message-card-text", !arabic && lora.className)}
-              dir={arabic ? "rtl" : "ltr"}
-              lang={arabic ? "ar" : "en"}
-              style={{ fontFamily: arabic ? '"Montserrat Arabic", "Segoe UI", Tahoma, sans-serif' : undefined }}
-            >
-              {cardMessage}
-            </p>
-          </div>
-        </div>
-      )}
+      {cards}
     </div>
   );
 }
